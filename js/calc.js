@@ -438,17 +438,17 @@ export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
 
   for (const w of analysis.weeks) {
     if (!w.mainLifts) continue;
-    const g = gradeWeek(w);
+    const sets = w.hardSetsPerLift ?? 0;
 
-    if (w.inolPerLift >= 4) {
-      flags.push({ tone: 'bad', text: `Týden ${w.week}: INOL ${num2(w.inolPerLift)} na hlavní cvik. Nad 4 se to už nedá odregenerovat — uber sérii nebo sjeď intenzitu.` });
-    } else if (w.inolPerLift >= 3) {
-      flags.push({ tone: 'warn', text: `Týden ${w.week}: INOL ${num2(w.inolPerLift)} na hlavní cvik. Vysoká zátěž, nedávej ji dva týdny po sobě.` });
-    } else if (g.tone === 'warn' && w.peakIntensity >= 90) {
-      flags.push({ tone: 'warn', text: `Týden ${w.week}: špička ${num2(w.peakIntensity, 0)} % z 1RM. Objem je nízký (INOL ${num2(w.inolPerLift)}), ale nervová soustava dostává zabrat — po takovém týdnu potřebuje závodník víc spánku, ne víc práce.` });
-    } else if (w.inolPerLift < 1 && w.peakIntensity < 85 && w.week !== lastWeek && w.week !== 1) {
+    if (sets >= 18) {
+      flags.push({ tone: 'bad', text: `Týden ${w.week}: ${num2(sets, 1)} tvrdých sérií na hlavní cvik. Nad 18 se to už nedá odregenerovat — uber sérii nebo sjeď intenzitu.` });
+    } else if (sets >= 12) {
+      flags.push({ tone: 'warn', text: `Týden ${w.week}: ${num2(sets, 1)} tvrdých sérií na hlavní cvik. Vysoká zátěž, nedávej ji dva týdny po sobě.` });
+    } else if (w.peakIntensity >= 90 && sets < 3) {
+      flags.push({ tone: 'warn', text: `Týden ${w.week}: špička ${num2(w.peakIntensity, 0)} % z 1RM při ${num2(sets, 1)} tvrdých sériích. Objem je nízký, ale nervová soustava dostává zabrat — po takovém týdnu potřebuje závodník víc spánku, ne víc práce.` });
+    } else if (sets < 1 && w.peakIntensity < 85 && w.week !== lastWeek && w.week !== 1) {
       // úvodní a poslední týden mají být lehké — hlásit se má jen propad uprostřed
-      flags.push({ tone: 'low', text: `Týden ${w.week}: INOL jen ${num2(w.inolPerLift)} a špička ${num2(w.peakIntensity, 0)} %. Uprostřed bloku je to na adaptaci málo.` });
+      flags.push({ tone: 'low', text: `Týden ${w.week}: jen ${num2(sets, 1)} tvrdých sérií a špička ${num2(w.peakIntensity, 0)} %. Uprostřed bloku je to na adaptaci málo.` });
     }
   }
 
@@ -491,9 +491,12 @@ export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
   }
 
   if (!flags.some((f) => f.tone === 'bad' || f.tone === 'warn')) {
+    const avgSets = analysis.weeks.length
+      ? analysis.weeks.reduce((s, w) => s + (w.hardSetsPerLift ?? 0), 0) / analysis.weeks.length
+      : 0;
     flags.unshift({
       tone: 'ok',
-      text: `Blok drží pohromadě: průměrná intenzita ${num2(analysis.total.avgIntensity, 1)} %, INOL ${num2(analysis.total.inolPerLiftWeek)} na cvik a týden, objem roste postupně.`,
+      text: `Blok drží pohromadě: průměrná intenzita ${num2(analysis.total.avgIntensity, 1)} %, ${num2(avgSets, 1)} tvrdých sérií na cvik a týden, objem roste postupně.`,
     });
   }
   return flags.slice(0, 6);

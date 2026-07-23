@@ -92,6 +92,12 @@ function build(root, render, nav) {
   const blkE1rm = S.blockE1rm(blk, a);
   const an = C.analyzeBlock(entries, blkE1rm, blk.start);
   const ac = C.acwr(an.loadsByDay, new Date());
+  const hs = C.hardSets(entries, blkE1rm, blk.start);
+  // průměr tvrdých sérií za týden pro jeden konkrétní cvik — týdny bez té
+  // série se počítají jako nula, jinak by cvik trénovaný jen občas vypadal nafouknutě
+  const weekSpan = Math.max(1, an.weeks.length);
+  const hardSetsPerLiftAvg = (lift) =>
+    C.round(hs.reduce((s, w) => s + (w.lifts[lift] ?? 0), 0) / weekSpan, 1);
 
   /* ---- výběr bloku ---- */
   root.append(h('div.btn-row',
@@ -186,12 +192,12 @@ function build(root, render, nav) {
         value: l.tonnage,
         color: LIFTS[l.lift]?.color ?? 'var(--steel)',
       })), { fmt: (v) => `${bigNum(S.toDisplay(v))} ${U()}` }),
-      table(['Cvik', { label: 'NL', num: true }, { label: 'Ø int.', num: true }, { label: 'INOL/týd.', num: true }, { label: `Top (${U()})`, num: true }],
+      table(['Cvik', { label: 'NL', num: true }, { label: 'Ø int.', num: true }, { label: 'Tvrdých sér./týd.', num: true }, { label: `Top (${U()})`, num: true }],
         an.lifts.map((l) => [
           h('span', liftDot(l.lift), LIFTS[l.lift]?.label ?? l.lift),
           { num: true, value: l.nl },
           { num: true, value: l.measured ? `${fixed(l.avgIntensity, 0)} %` : h('span.faint', '—') },
-          { num: true, value: l.measured ? fixed(l.inolPerWeek, 2) : '—' },
+          { num: true, value: l.measured ? fixed(hardSetsPerLiftAvg(l.lift), 1) : '—' },
           { num: true, value: W(l.top, 1) },
         ])))));
 
@@ -249,7 +255,6 @@ function build(root, render, nav) {
   }
 
   /* ---- tvrdé série ---- */
-  const hs = C.hardSets(entries, blkE1rm, blk.start);
   const usedLifts = COMP_LIFTS.filter((k) => hs.some((w) => w.lifts[k]));
   if (usedLifts.length) {
     root.append(card('Tvrdé série po týdnech', {
@@ -305,7 +310,7 @@ function build(root, render, nav) {
 
     card('Co si hlídat', { eyebrow: 'Automatická kontrola' },
       ...C.blockFlags(an, ac.ratio, (k) => LIFTS[k]?.label ?? k).map(flagRow),
-      h('p.note', 'Kontrola vychází z INOL (opakování ÷ (100 − intenzita)), Prilepinových pásem a poměru akutní ku chronické zátěži. Doplňkové cviky se do intenzitních metrik nepočítají — nemají 1RM.'))));
+      h('p.note', 'Kontrola vychází z tvrdých sérií na cvik a týden (RPE ≥ 7), špičkové intenzity a Prilepinových pásem. Doplňkové cviky se do intenzitních metrik nepočítají — nemají 1RM.'))));
 
   /* ---- editor ---- */
   if (st.showEditor) root.append(editor(all, blk, a, render));

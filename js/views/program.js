@@ -185,6 +185,9 @@ function build(root, render, nav) {
   const preview = toEntries(all, a);
   const an = C.analyzeBlock(preview, a.e1rm, st.start);
   const peak = Math.max(0, ...an.weeks.map((w) => w.peakIntensity ?? 0));
+  const avgHardSets = an.weeks.length
+    ? an.weeks.reduce((s, w) => s + (w.hardSetsPerLift ?? 0), 0) / an.weeks.length
+    : 0;
 
   root.append(card('Náhled zátěže', { eyebrow: 'Celý blok, než ho založíš', class: 'is-flush' },
     h('div', { style: { padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: '16px' } },
@@ -195,11 +198,10 @@ function build(root, render, nav) {
         h('div.stat', { dataset: { tone: peak >= 90 ? 'bad' : peak >= 85 ? 'warn' : null } },
           h('div.stat-label', 'Nejtěžší série'),
           h('div.stat-value', fixed(peak, 1), h('span.stat-unit', '%')),
-          h('div.faint.mono', { style: { fontSize: '11px' } }, `INOL ${fixed(an.total.inolPerLiftWeek, 2)} / cvik / týden`))),
+          h('div.faint.mono', { style: { fontSize: '11px' } }, `${fixed(avgHardSets, 1)} tvrdých sérií / cvik / týden`))),
       table(
-        ['Týden', { label: `Tonáž (${U()})`, num: true }, { label: 'NL hlavní', num: true },
-          { label: 'INOL / cvik', num: true }, { label: 'Ø int.', num: true }, { label: 'Špička', num: true },
-          'Charakter týdne', { label: 'Změna objemu', num: true }],
+        ['Týden', { label: 'Tvrdých sérií / cvik', num: true }, { label: 'Ø int.', num: true }, { label: 'Špička', num: true },
+          'Charakter týdne', { label: `Tonáž (${U()})`, num: true }, { label: 'Změna objemu', num: true }],
         an.weeks.map((wk, i) => {
           const g = C.gradeWeek(wk);
           const prev = an.weeks[i - 1];
@@ -208,16 +210,15 @@ function build(root, render, nav) {
             tone: wk.week === st.openWeek ? 'ok' : null,
             cells: [
               h('b', `Týden ${wk.week}`),
-              { num: true, value: num(S.toDisplay(wk.tonnage), 0) },
-              { num: true, value: wk.nlMain },
-              { num: true, value: fixed(wk.inolPerLift, 2) },
+              { num: true, value: h('b', fixed(wk.hardSetsPerLift, 1)) },
               { num: true, value: `${fixed(wk.avgIntensity, 0)} %` },
               {
                 num: true,
                 value: h('b', { style: { color: wk.peakIntensity >= 90 ? 'var(--red-lit)' : wk.peakIntensity >= 85 ? 'var(--yellow)' : 'var(--chalk)' } }, `${fixed(wk.peakIntensity, 0)} %`),
               },
               h('span', { title: g.note }, tag(g.label, g.tone)),
-              { num: true, value: delta == null ? '—' : h('span', { style: { color: Math.abs(delta) > 30 ? 'var(--yellow)' : 'var(--chalk-dim)' } }, `${delta >= 0 ? '+' : '−'}${fixed(Math.abs(delta), 0)} %`) },
+              { num: true, value: h('span.faint', num(S.toDisplay(wk.tonnage), 0)) },
+              { num: true, value: delta == null ? '—' : h('span.faint', `${delta >= 0 ? '+' : '−'}${fixed(Math.abs(delta), 0)} %`) },
             ],
           };
         })))));
