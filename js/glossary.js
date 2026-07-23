@@ -148,6 +148,23 @@ export const GLOSSARY = [
 
   /* ---------------- Únava a zátěž ---------------- */
   {
+    id: 'charakter-tydne',
+    group: 'objem',
+    term: 'Charakter týdne',
+    full: 'Objem a intenzita jsou dvě různé věci',
+    short: 'Proč týden s maximálními singly může mít nízký INOL a přesto být ten nejtěžší.',
+    formula: 'INOL = objem vážený těžkostí\nŠpička = nejtěžší série týdne v % z 1RM',
+    bands: [
+      { range: 'Deload', label: 'Nízký objem i intenzita — skutečné odlehčení', tone: 'low' },
+      { range: 'Objemová práce', label: 'Vysoký INOL, střední váhy — únava sedí ve svalech', tone: 'warn' },
+      { range: 'Ostré, málo objemu', label: 'Nízký INOL, špička nad 90 % — vrcholení, nervová soustava naplno', tone: 'warn' },
+      { range: 'Velmi náročné', label: 'Vysoký objem i maximální váhy naráz', tone: 'bad' },
+    ],
+    body: 'INOL počítá opakování vážená tím, jak byla těžká. Jedna jednička na 90 % přidá 0,1, ale 5×5 na 75 % přidá 1,0 — desetkrát víc, i když ta jednička byla subjektivně mnohem těžší. Je to tak správně: INOL měří, kolik práce se udělalo, ne jak blízko limitu se šlo.',
+    how: 'Proto se nedívej jen na INOL. Týden s 1×1 na 90 % a 2×3 na 80 % má INOL kolem 0,4 — objemově je to skoro nic, ale je to nejostřejší týden v bloku. Regenerace po něm nepotřebuje jídlo a čas na svaly, ale spánek a klid na nervovou soustavu. V tabulce „Týden po týdnu" proto čti INOL a Špičku vedle sebe: nízký INOL + vysoká špička = vrcholení, ne lehký týden.',
+    source: 'INOL podle Hristova; rozlišení objem/intenzita je běžná trenérská praxe, ne publikovaná škála.',
+  },
+  {
     id: 'acwr',
     group: 'unava',
     term: 'ACWR',

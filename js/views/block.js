@@ -2,12 +2,10 @@ import { h, card, stat, icon, num, fixed, pct, bigNum, tag, table, field, numInp
 import { stackedBars, heatmap, splitBar, lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { LIFTS, COMP_LIFTS, PRILEPIN, INOL_WEEK, SET_LANDMARKS } from '../data.js';
+import { LIFTS, COMP_LIFTS, PRILEPIN, SET_LANDMARKS } from '../data.js';
 import { W, U, Wu, liftDot, liftName, flagRow, empty } from './_util.js';
 
 const DAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
-const TONE_COLOR = { low: 'var(--blue)', ok: 'var(--green)', warn: 'var(--yellow)', bad: 'var(--red)' };
-const dec = (v) => String(v.toFixed(1)).replace('.', ',');
 const st = { showEditor: false, filter: 'all', duplicating: false };
 
 /* =========================================================
@@ -121,12 +119,13 @@ function build(root, render, nav) {
   }
 
   /* ---- souhrn ---- */
-  const g = C.gradeInol(an.total.inolPerLiftWeek, 'week');
+  const peak = Math.max(0, ...an.weeks.map((w) => w.peakIntensity ?? 0));
+  const peakTone = peak >= 90 ? 'bad' : peak >= 85 ? 'warn' : null;
   root.append(h('div.grid.g4',
     stat('Celková tonáž', bigNum(S.toDisplay(an.total.tonnage)), U()),
     stat('Zvedů v hlavních cvicích', bigNum(an.total.nlMain), `z ${bigNum(an.total.nl)} NL`),
     stat('Průměrná intenzita', num(an.total.avgIntensity, 1), '% z E1RM'),
-    stat('INOL / cvik / týden', num(an.total.inolPerLiftWeek, 2), g.label, g.tone)));
+    stat('Nejtěžší série bloku', num(peak, 1), '% z 1RM', peakTone)));
 
   /* ---- heatmapa ---- */
   const cells = [];
@@ -194,36 +193,38 @@ function build(root, render, nav) {
         ])))));
 
   /* ---- týdenní tabulka ---- */
-  root.append(card('Týden po týdnu', { eyebrow: 'Objem, intenzita, únava', class: 'is-flush' },
+  root.append(card('Týden po týdnu', { eyebrow: 'Objem a intenzita zvlášť — jedno číslo týden nepopíše', class: 'is-flush' },
     h('div', { style: { padding: '0 24px 24px' } },
       table(
-        ['Týden', { label: 'Jednotek', num: true }, { label: `Tonáž (${U()})`, num: true }, { label: 'NL hlavní', num: true }, { label: 'Ø intenzita', num: true }, { label: 'INOL / cvik', num: true }, 'Hodnocení', { label: 'Změna objemu', num: true }],
+        ['Týden', { label: `Tonáž (${U()})`, num: true }, { label: 'NL hlavní', num: true },
+          { label: 'INOL / cvik', num: true }, { label: 'Ø int.', num: true }, { label: 'Špička', num: true },
+          'Charakter týdne', { label: 'Změna objemu', num: true }],
         an.weeks.map((w, i) => {
-          const grade = C.gradeInol(w.inolPerLift, 'week');
+          const g = C.gradeWeek(w);
           const prev = an.weeks[i - 1];
           const delta = prev && prev.tonnage ? ((w.tonnage - prev.tonnage) / prev.tonnage) * 100 : null;
           return {
-            tone: grade.tone === 'bad' ? 'bad' : grade.tone === 'warn' ? 'warn' : null,
+            tone: g.tone === 'bad' ? 'bad' : g.tone === 'warn' ? 'warn' : null,
             cells: [
               h('b', `Týden ${w.week}`),
-              { num: true, value: w.sessions },
               { num: true, value: bigNum(S.toDisplay(w.tonnage)) },
               { num: true, value: w.nlMain },
-              { num: true, value: w.nlMain ? `${fixed(w.avgIntensity, 1)} %` : '—' },
               { num: true, value: fixed(w.inolPerLift, 2) },
-              tag(grade.label, grade.tone),
+              { num: true, value: w.nlMain ? `${fixed(w.avgIntensity, 0)} %` : '—' },
+              {
+                num: true,
+                value: w.nlMain
+                  ? h('b', { style: { color: w.peakIntensity >= 90 ? 'var(--red-lit)' : w.peakIntensity >= 85 ? 'var(--yellow)' : 'var(--chalk)' } }, `${fixed(w.peakIntensity, 0)} %`)
+                  : '—',
+              },
+              h('span', { title: g.note }, tag(g.label, g.tone)),
               { num: true, value: delta == null ? '—' : h('span', { style: { color: Math.abs(delta) > 30 ? 'var(--yellow)' : 'var(--chalk-dim)' } }, `${delta >= 0 ? '+' : ''}${fixed(delta, 0)} %`) },
             ],
           };
         })),
-      h('div.zone-legend', { style: { marginTop: '14px' } },
-        h('span.faint', { style: { fontSize: '11px' } }, 'Týdenní INOL na cvik:'),
-        ...INOL_WEEK.map((b, i) => h('div.zone-item',
-          h('i', { style: { background: TONE_COLOR[b.tone] } }),
-          i === 0 ? `do ${dec(b.max)}`
-            : i === INOL_WEEK.length - 1 ? `nad ${dec(INOL_WEEK[i - 1].max)}`
-              : `${dec(INOL_WEEK[i - 1].max)}–${dec(b.max)}`,
-          ` — ${b.label.toLowerCase()}`))))));
+      h('p.note', { style: { marginTop: '14px' } },
+        h('b', 'INOL'), ' měří objem vážený těžkostí — jednička na 90 % přidá jen 0,1, ale 5×5 na 75 % přidá 1,0. ',
+        h('b', 'Špička'), ' je nejtěžší série týdne v procentech z 1RM. Týden s maximálními singly proto může mít nízký INOL a přesto být nejnáročnější v bloku — objem netlačí, ale nervová soustava jede naplno. Proto se tady obě čísla ukazují vedle sebe.'))));
 
   /* ---- únava a zátěž ---- */
   const loads = C.sessionLoads(entries);

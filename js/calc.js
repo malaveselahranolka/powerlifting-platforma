@@ -185,6 +185,63 @@ export const gradeInol = (v, scope = 'session') =>
   (scope === 'week' ? INOL_WEEK : INOL_SESSION).find((b) => v < b.max) ?? INOL_SESSION.at(-1);
 
 /**
+ * Charakter týdne. Objem a intenzita jsou dvě nezávislé osy a jedno číslo
+ * je nepopíše.
+ *
+ * INOL je vážený objemem: jednička na 90 % přidá 0,1, ale 5×5 na 75 % přidá
+ * 1,0. Kdyby se týden hodnotil jen podle INOL, vrcholící týden s maximálními
+ * singly by vyšel jako „lehký" — přitom je na nervovou soustavu nejnáročnější
+ * v celém bloku. Proto se tady čte i špičková intenzita.
+ *
+ * Vrací { label, tone, volume, intensity, note }.
+ */
+export function gradeWeek(week) {
+  const inolLevel = week.inolPerLift;
+  const peak = week.peakIntensity ?? 0;
+
+  // osa objemu
+  const volume = inolLevel < 1 ? 'velmi nízký'
+    : inolLevel < 2 ? 'nízký'
+      : inolLevel < 3 ? 'střední'
+        : inolLevel < 4 ? 'vysoký' : 'extrémní';
+
+  // osa intenzity — špička rozhoduje, ne průměr
+  const intensity = peak >= 90 ? 'maximální'
+    : peak >= 85 ? 'těžká'
+      : peak >= 75 ? 'střední' : 'lehká';
+
+  // Objemová pásma podle Hristova: do 2 lehké, 2–3 udržitelné,
+  // 3–4 vysoká zátěž, nad 4 za hranicí regenerace.
+  const lowVol = inolLevel < 2;
+  const midVol = inolLevel >= 2 && inolLevel < 3;
+  const highVol = inolLevel >= 3;
+  const extremeVol = inolLevel >= 4;
+
+  // Maximální intenzita není nikdy „lehký týden", ať je objemu jakkoli málo.
+  if (peak >= 90) {
+    if (highVol) return { label: 'Velmi náročné', tone: 'bad', volume, intensity, note: 'Maximální váhy i vysoký objem naráz. Nedávej dva týdny po sobě.' };
+    // „málo objemu" musí opravdu znamenat málo — nad INOL 1 je to plnohodnotný ostrý týden
+    if (inolLevel < 1) return { label: 'Ostré, málo objemu', tone: 'warn', volume, intensity, note: 'Typické vrcholení: nervová soustava jede naplno, svaly skoro nic nedostanou. Nízký INOL tady neznamená lehký trénink.' };
+    return { label: 'Ostrý týden', tone: 'warn', volume, intensity, note: 'Maximální váhy k tomu slušný objem. Náročné na hlavu i tělo.' };
+  }
+
+  if (peak >= 85) {
+    if (extremeVol) return { label: 'Za hranicí', tone: 'bad', volume, intensity, note: 'Těžké váhy a objem nad hranicí regenerace.' };
+    if (highVol) return { label: 'Náročné', tone: 'warn', volume, intensity, note: 'Těžké váhy a hodně jich. Sleduj regeneraci.' };
+    // těžké váhy dělají práci i při malém objemu — není to deficit, jen jiný typ týdne
+    if (lowVol) return { label: 'Těžké, málo objemu', tone: 'ok', volume, intensity, note: 'Intenzita drží formu, objem netlačí. Sedí do taperu nebo mezi objemové týdny.' };
+    return { label: 'Standard', tone: 'ok', volume, intensity, note: 'Vyvážený týden — těžké váhy s udržitelným objemem.' };
+  }
+
+  // střední a nižší intenzita — rozhoduje objem
+  if (extremeVol) return { label: 'Objem za hranicí', tone: 'bad', volume, intensity, note: 'Nad 4 INOL se to nedá odregenerovat ani na středních vahách.' };
+  if (highVol) return { label: 'Objemová práce', tone: 'warn', volume, intensity, note: 'Hodně opakování na středních vahách. Únava se hromadí ve svalech.' };
+  if (midVol) return { label: 'Udržitelné', tone: 'ok', volume, intensity, note: 'Slušná dávka objemu, ze které se dá týden co týden regenerovat.' };
+  if (inolLevel < 1) return { label: 'Deload', tone: 'low', volume, intensity, note: 'Nízký objem i intenzita. Odlehčení, nebo úvod bloku.' };
+  return { label: 'Lehký týden', tone: 'low', volume, intensity, note: 'Malá dávka. Uprostřed bloku je to na adaptaci málo.' };
+}
+
+/**
  * ACWR = akutní (7 dní) / chronická (klouzavý průměr 28 dní) zátěž.
  * Bezpečné pásmo 0,8–1,3. Nad 1,5 skok v zátěži.
  */
@@ -293,7 +350,7 @@ export function analyzeBlock(entries, e1rms, startDate) {
 
     if (!weeks.has(w)) {
       weeks.set(w, {
-        week: w, tonnage: 0, nl: 0, nlMain: 0, inol: 0, intSum: 0,
+        week: w, tonnage: 0, nl: 0, nlMain: 0, inol: 0, intSum: 0, peak: 0, hardSets: 0,
         sessions: new Set(), measuredLifts: new Set(),
         zones: Object.fromEntries(PRILEPIN.map((z) => [z.key, 0])), lifts: {},
       });
@@ -309,6 +366,8 @@ export function analyzeBlock(entries, e1rms, startDate) {
       wk.inol += inol(reps, int);
       wk.zones[prilepinZone(int).key] += reps;
       wk.measuredLifts.add(e.lift);
+      wk.peak = Math.max(wk.peak, int);
+      if (isHardSet(e, e1)) wk.hardSets += e.sets;
     }
 
     if (!byLift.has(e.lift)) {
@@ -333,6 +392,8 @@ export function analyzeBlock(entries, e1rms, startDate) {
       sessions: w.sessions.size,
       mainLifts: w.measuredLifts.size,
       avgIntensity: w.nlMain ? round(w.intSum / w.nlMain, 1) : 0,
+      peakIntensity: round(w.peak, 1),
+      hardSetsPerLift: round(w.hardSets / Math.max(1, w.measuredLifts.size), 1),
       tonnage: round(w.tonnage),
       inol: round(w.inol, 2),
       inolPerLift: round(w.inol / Math.max(1, w.measuredLifts.size), 2),
@@ -378,14 +439,17 @@ export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
 
   for (const w of analysis.weeks) {
     if (!w.mainLifts) continue;
-    const g = gradeInol(w.inolPerLift, 'week');
-    if (g.tone === 'bad') {
+    const g = gradeWeek(w);
+
+    if (w.inolPerLift >= 4) {
       flags.push({ tone: 'bad', text: `Týden ${w.week}: INOL ${num2(w.inolPerLift)} na hlavní cvik. Nad 4 se to už nedá odregenerovat — uber sérii nebo sjeď intenzitu.` });
-    } else if (g.tone === 'warn') {
+    } else if (w.inolPerLift >= 3) {
       flags.push({ tone: 'warn', text: `Týden ${w.week}: INOL ${num2(w.inolPerLift)} na hlavní cvik. Vysoká zátěž, nedávej ji dva týdny po sobě.` });
-    } else if (w.inolPerLift < 1 && w.week !== lastWeek && w.week !== 1) {
+    } else if (g.tone === 'warn' && w.peakIntensity >= 90) {
+      flags.push({ tone: 'warn', text: `Týden ${w.week}: špička ${num2(w.peakIntensity, 0)} % z 1RM. Objem je nízký (INOL ${num2(w.inolPerLift)}), ale nervová soustava dostává zabrat — po takovém týdnu potřebuje závodník víc spánku, ne víc práce.` });
+    } else if (w.inolPerLift < 1 && w.peakIntensity < 85 && w.week !== lastWeek && w.week !== 1) {
       // úvodní a poslední týden mají být lehké — hlásit se má jen propad uprostřed
-      flags.push({ tone: 'low', text: `Týden ${w.week}: INOL jen ${num2(w.inolPerLift)} na hlavní cvik. Uprostřed bloku je to málo na adaptaci.` });
+      flags.push({ tone: 'low', text: `Týden ${w.week}: INOL jen ${num2(w.inolPerLift)} a špička ${num2(w.peakIntensity, 0)} %. Uprostřed bloku je to na adaptaci málo.` });
     }
   }
 
