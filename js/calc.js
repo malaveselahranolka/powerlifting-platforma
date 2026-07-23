@@ -481,7 +481,11 @@ export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
   if (analysis.weeks.length >= 3) {
     const t = taperCheck(analysis.weeks);
     if (t && t.drop < 30) {
-      flags.push({ tone: 'warn', text: `Poslední týden ubral jen ${num2(t.drop, 0)} % objemu. Před testem nebo závodem se snižuje o 41 až 50 % při zachované intenzitě.` });
+      // záporný drop znamená, že objem naopak narostl — „ubral −2 %" je nesmysl
+      const zmena = t.drop < 0
+        ? `naopak přidal ${num2(-t.drop, 0)} % objemu`
+        : `ubral jen ${num2(t.drop, 0)} % objemu`;
+      flags.push({ tone: 'warn', text: `Poslední týden ${zmena}. Před testem nebo závodem se snižuje o 41 až 50 % při zachované intenzitě.` });
     } else if (t && !t.intensityKept && t.drop >= 30) {
       flags.push({ tone: 'warn', text: `Objem klesl o ${num2(t.drop, 0)} %, ale spadla i intenzita. Při vrcholení se od těžkých vah neodchází — jinak přijdeš o formu, ne o únavu.` });
     }

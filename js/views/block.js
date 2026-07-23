@@ -87,7 +87,10 @@ function build(root, render, nav) {
 
   const all = S.blockEntries(blk.id);
   const entries = st.filter === 'all' ? all : all.filter((e) => e.lift === st.filter);
-  const an = C.analyzeBlock(entries, a.e1rm, blk.start);
+  // maxima platná v době bloku, ne dnešní — jinak by starý blok po zlepšení
+  // zpětně vypadal lehčí, než byl
+  const blkE1rm = S.blockE1rm(blk, a);
+  const an = C.analyzeBlock(entries, blkE1rm, blk.start);
   const ac = C.acwr(an.loadsByDay, new Date());
 
   /* ---- výběr bloku ---- */
@@ -136,7 +139,7 @@ function build(root, render, nav) {
     const key = `${wk}|${day}`;
     if (!byDay.has(key)) byDay.set(key, { week: wk, day, ton: 0, intSum: 0, nl: 0, date: e.date });
     const d = byDay.get(key);
-    const e1 = a.e1rm[e.lift] ?? 0;
+    const e1 = blkE1rm[e.lift] ?? 0;
     d.ton += C.tonnage(e);
     if (e1 > 0) { d.intSum += C.intensity(e, e1) * C.nl(e); d.nl += C.nl(e); }
   }
@@ -248,7 +251,7 @@ function build(root, render, nav) {
     h('p.note', 'Klouzavý ACWR dává všem dnům v okně stejnou váhu. EWMA váží čerstvé dny víc, což lépe odpovídá tomu, jak únava odeznívá — když se obě čísla rozcházejí, spolehni se na EWMA. Monotonie počítá dny volna jako nulu: pestrý týden se střídavě těžkými dny ji drží nízko.')));
 
   /* ---- tvrdé série ---- */
-  const hs = C.hardSets(entries, a.e1rm, blk.start);
+  const hs = C.hardSets(entries, blkE1rm, blk.start);
   const usedLifts = COMP_LIFTS.filter((k) => hs.some((w) => w.lifts[k]));
   if (usedLifts.length) {
     root.append(card('Tvrdé série po týdnech', {
@@ -284,7 +287,7 @@ function build(root, render, nav) {
           ['Zóna', { label: 'Op./série', num: true }, { label: 'Zvedů', num: true }, { label: 'Ø / jednotku', num: true }, { label: 'Pásmo', num: true }, 'Stav'],
           PRILEPIN.map((z) => {
             const repsTotal = an.weeks.reduce((s2, w) => s2 + w.zones[z.key], 0);
-            const sessionsWithZone = countSessionsInZone(entries, a.e1rm, z);
+            const sessionsWithZone = countSessionsInZone(entries, blkE1rm, z);
             const avg = sessionsWithZone ? repsTotal / sessionsWithZone : 0;
             const inRange = avg >= z.range[0] && avg <= z.range[1];
             return [
@@ -297,7 +300,10 @@ function build(root, render, nav) {
                 : inRange ? tag('v pásmu', 'ok')
                   : avg > z.range[1] ? tag('nad pásmem', 'warn') : tag('pod pásmem', 'low'),
             ];
-          })))),
+          })),
+        h('p.note', { style: { marginTop: '12px' } },
+          'Pásma platí na ', h('b', 'jeden cvik v jedné jednotce'), ', ne na týden. Dvě věci, kvůli kterým „pod pásmem" často neznamená chybu: rozcvičovací série se sem nepočítají (appka vidí jen to, co je zapsané), a Prilepin vznikl na vzpírání, kde se v zóně nad 90 % dělalo víc těžkých jednotek za sebou. ',
+          h('b', 'Vrcholení s jedním top singlem'), ' bude v téhle zóně pod pásmem vždycky a je to v pořádku.'))),
 
     card('Co si hlídat', { eyebrow: 'Automatická kontrola' },
       ...C.blockFlags(an, ac.ratio, (k) => LIFTS[k]?.label ?? k).map(flagRow),

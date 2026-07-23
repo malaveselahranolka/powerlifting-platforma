@@ -11,7 +11,7 @@ export function dashboard(nav) {
 
   const blk = S.block();
   const entries = blk ? S.blockEntries(blk.id) : [];
-  const analysis = C.analyzeBlock(entries, a.e1rm, blk?.start);
+  const analysis = C.analyzeBlock(entries, S.blockE1rm(blk, a), blk?.start);
   const ac = C.acwr(analysis.loadsByDay, new Date());
   const acg = C.gradeAcwr(ac.ratio);
   const total = S.total(a);
@@ -51,12 +51,23 @@ export function dashboard(nav) {
           t ? `${t.perMonth >= 0 ? '+' : ''}${num(t.perMonth, 1)} ${U()} / měsíc` : 'bez trendu'));
     }),
     (() => {
-      const week = blk ? Math.min(blk.weeks, Math.max(1, Math.floor(C.daysBetween(blk.start, new Date()) / 7) + 1)) : null;
+      if (!blk) {
+        return h('div.stat', { dataset: { tone: 'hero' } },
+          h('div.stat-label', 'Žádný blok'),
+          h('div.stat-value', '—'),
+          h('div.faint.mono', { style: { fontSize: '11px' } }, 'Postav blok ve Stavbě bloku'));
+      }
+      // rozlišit běžící blok od dokončeného — „4 / 4 týdnů" u hotového bloku mate
+      const uply = C.daysBetween(blk.start, new Date());
+      const raw = Math.floor(uply / 7) + 1;
+      const hotovo = raw > blk.weeks;
+      const week = Math.min(blk.weeks, Math.max(1, raw));
       return h('div.stat', { dataset: { tone: 'hero' } },
-        h('div.stat-label', blk ? 'Blok' : 'Žádný blok'),
-        h('div.stat-value', blk ? `${week}` : '—', h('span.stat-unit', blk ? `/ ${blk.weeks} týdnů` : '')),
-        h('div.faint.mono', { style: { fontSize: '11px' } },
-          blk ? blk.name : 'Postav blok ve Stavbě bloku'));
+        h('div.stat-label', hotovo ? 'Blok dokončen' : uply < 0 ? 'Blok začíná' : 'Blok'),
+        hotovo
+          ? h('div.stat-value', blk.weeks, h('span.stat-unit', 'týdnů hotovo'))
+          : h('div.stat-value', `${week}`, h('span.stat-unit', `/ ${blk.weeks} týdnů`)),
+        h('div.faint.mono', { style: { fontSize: '11px' } }, blk.name));
     })()));
 
   /* ---- objem bloku + zatížení ---- */

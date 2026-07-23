@@ -231,7 +231,8 @@ function build(root, render, nav) {
         const name = st.name.trim()
           || `${BLOCK_TEMPLATES[st.template].label} · ${new Intl.DateTimeFormat('cs-CZ', { month: 'long' }).format(C.parseDate(st.start))}`;
         S.commit((s) => {
-          s.blocks.push({ id, athleteId: a.id, name, start: st.start, weeks, template: st.template });
+          // snapshot maxim — aby blok zůstal čitelný i po zlepšení závodníka
+          s.blocks.push({ id, athleteId: a.id, name, start: st.start, weeks, template: st.template, e1rm: { ...a.e1rm } });
           for (const e of toEntries(all, a)) s.entries.push({ ...e, id: S.uid(), blockId: id, athleteId: a.id });
           s.activeBlock = id;
         });

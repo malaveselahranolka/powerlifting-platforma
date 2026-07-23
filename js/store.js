@@ -201,6 +201,7 @@ export function duplicateBlock(blockId, { name, start, athleteId } = {}) {
       id, athleteId: target, weeks: src.weeks, template: src.template,
       name: name?.trim() || `${src.name} (kopie)`,
       start: newStart,
+      e1rm: { ...(to?.e1rm ?? {}) },
     });
 
     for (const e of copied) {
@@ -242,6 +243,32 @@ export function saveDraft(athleteId, draft) {
 export function clearDraft(athleteId) {
   if (state.drafts) delete state.drafts[athleteId];
   persist();
+}
+
+/**
+ * Maxima platná pro daný blok, ne dnešní.
+ *
+ * Intenzita v % má smysl jen proti maximu, které závodník měl v době, kdy
+ * trénoval. Kdyby se historický blok počítal proti dnešnímu E1RM, vypadal by
+ * po každém zlepšení zpětně lehčí, než ve skutečnosti byl — a analýza starých
+ * bloků by přestala dávat smysl.
+ *
+ * Pořadí: snapshot uložený u bloku → poslední zápis v historii k datu startu
+ * → dnešní maxima jako nouzová varianta.
+ */
+export function blockE1rm(blk, a = athlete()) {
+  if (!blk || !a) return a?.e1rm ?? {};
+  if (blk.e1rm) return blk.e1rm;
+
+  const log = (state.e1rmLog ?? []).filter((x) => x.athleteId === a.id && x.date <= blk.start);
+  if (!log.length) return a.e1rm;
+
+  const snap = { ...a.e1rm };
+  for (const lift of ['squat', 'bench', 'deadlift']) {
+    const last = log.filter((x) => x.lift === lift).sort((x, y) => x.date.localeCompare(y.date)).at(-1);
+    if (last) snap[lift] = last.value;
+  }
+  return snap;
 }
 
 /** Přepne svěřence a s ním i aktivní blok. */
