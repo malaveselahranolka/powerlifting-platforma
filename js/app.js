@@ -13,6 +13,7 @@ import { meetView } from './views/meet.js';
 import { scoreView } from './views/score.js';
 import { athletesView } from './views/athletes.js';
 import { glossaryView } from './views/glossary.js';
+import { realityView } from './views/reality.js';
 
 const ROUTES = [
   { id: 'dashboard', label: 'Přehled', ic: 'gauge', title: 'Přehled', sub: 'Kde svěřenec stojí a kam se hýbe.', view: dashboard },
@@ -21,7 +22,8 @@ const ROUTES = [
   { id: 'rpe', label: 'RPE tabulka', ic: 'grid', title: 'RPE tabulka', sub: 'Opakování × RPE převedené na procenta a kilogramy.', view: rpeView },
   { id: 'plates', label: 'Kotouče', ic: 'disc', title: 'Nakládání osy', sub: 'Co skutečně naložíš s kotouči, které máš.', view: platesView },
   { group: 'Trénink' },
-  { id: 'block', label: 'Analýza bloku', ic: 'layers', title: 'Analýza bloku', sub: 'Tonáž, intenzita, INOL, Prilepin a poměr zátěže.', view: blockView },
+  { id: 'realita', label: 'Plán vs. realita', ic: 'target', title: 'Plán vs. realita', sub: 'Jak trénink dopadl proti tomu, jak byl napsaný.', view: realityView },
+  { id: 'block', label: 'Analýza bloku', ic: 'layers', title: 'Analýza bloku', sub: 'Objem, intenzita a charakter jednotlivých týdnů.', view: blockView },
   { id: 'program', label: 'Stavba bloku', ic: 'calendar', title: 'Stavba bloku', sub: 'Vlny, procenta a hotový plán na týdny dopředu.', view: programView },
   { group: 'Závod' },
   { id: 'meet', label: 'Závodní den', ic: 'trophy', title: 'Závodní den', sub: 'Pokusy, rozcvičení a co to udělá se součtem.', view: meetView },

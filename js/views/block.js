@@ -199,9 +199,9 @@ function build(root, render, nav) {
   root.append(card('Týden po týdnu', { eyebrow: 'Objem a intenzita zvlášť — jedno číslo týden nepopíše', class: 'is-flush' },
     h('div', { style: { padding: '0 24px 24px' } },
       table(
-        ['Týden', { label: `Tonáž (${U()})`, num: true }, { label: 'NL hlavní', num: true },
-          { label: 'INOL / cvik', num: true }, { label: 'Ø int.', num: true }, { label: 'Špička', num: true },
-          'Charakter týdne', { label: 'Změna objemu', num: true }],
+        ['Týden', { label: 'Tvrdých sérií / cvik', num: true }, { label: 'Ø int.', num: true },
+          { label: 'Špička', num: true }, 'Charakter týdne',
+          { label: `Tonáž (${U()})`, num: true }, { label: 'Změna objemu', num: true }],
         an.weeks.map((w, i) => {
           const g = C.gradeWeek(w);
           const prev = an.weeks[i - 1];
@@ -210,9 +210,7 @@ function build(root, render, nav) {
             tone: g.tone === 'bad' ? 'bad' : g.tone === 'warn' ? 'warn' : null,
             cells: [
               h('b', `Týden ${w.week}`),
-              { num: true, value: bigNum(S.toDisplay(w.tonnage)) },
-              { num: true, value: w.nlMain },
-              { num: true, value: fixed(w.inolPerLift, 2) },
+              { num: true, value: h('b', fixed(w.hardSetsPerLift, 1)) },
               { num: true, value: w.nlMain ? `${fixed(w.avgIntensity, 0)} %` : '—' },
               {
                 num: true,
@@ -221,34 +219,34 @@ function build(root, render, nav) {
                   : '—',
               },
               h('span', { title: g.note }, tag(g.label, g.tone)),
-              { num: true, value: delta == null ? '—' : h('span', { style: { color: Math.abs(delta) > 30 ? 'var(--yellow)' : 'var(--chalk-dim)' } }, `${delta >= 0 ? '+' : ''}${fixed(delta, 0)} %`) },
+              { num: true, value: h('span.faint', bigNum(S.toDisplay(w.tonnage))) },
+              { num: true, value: delta == null ? '—' : h('span.faint', `${delta >= 0 ? '+' : ''}${fixed(delta, 0)} %`) },
             ],
           };
         })),
       h('p.note', { style: { marginTop: '14px' } },
-        h('b', 'INOL'), ' měří objem vážený těžkostí — jednička na 90 % přidá jen 0,1, ale 5×5 na 75 % přidá 1,0. ',
-        h('b', 'Špička'), ' je nejtěžší série týdne v procentech z 1RM. Týden s maximálními singly proto může mít nízký INOL a přesto být nejnáročnější v bloku — objem netlačí, ale nervová soustava jede naplno. Proto se tady obě čísla ukazují vedle sebe.'))));
+        h('b', 'Tvrdá série'), ' je série na RPE 7 a výš — jen ty tvoří podnět. Je to objemová metrika, na které se současná praxe sjednotila; tonáž je vedle jen pro orientaci, protože odmění i nekonečné lehké série. ',
+        h('b', 'Špička'), ' je nejtěžší série týdne v procentech z 1RM. Týden s maximálními singly může mít málo sérií a přesto být nejnáročnější v bloku — objem netlačí, ale nervová soustava jede naplno.'))));
 
-  /* ---- únava a zátěž ---- */
-  const loads = C.sessionLoads(entries);
-  const dailyLoads = Object.fromEntries(Object.values(loads).map((d) => [d.date, d.load]));
-  const lastDay = Object.keys(dailyLoads).sort().at(-1);
-  const mono = C.monotony(dailyLoads, lastDay);
-  const monoGrade = C.gradeMonotony(mono.monotony);
-  const ew = C.acwrEwma(an.loadsByDay, new Date());
-  const acg = C.gradeAcwr(ac.ratio);
-  const ewg = C.gradeAcwr(ew.ratio);
-
-  root.append(card('Únava a zátěž', {
-    eyebrow: 'Jak se zátěž hromadí v čase',
-    action: h('button.btn.btn-sm', { onclick: () => nav('slovnik') }, icon('book', 14), 'Vysvětlivky'),
-  },
-    h('div.grid.g4',
-      stat('ACWR klouzavý', fixed(ac.ratio, 2), acg.label, acg.tone),
-      stat('ACWR EWMA', fixed(ew.ratio, 2), ew.reliable ? ewg.label : 'málo historie', ew.reliable ? ewg.tone : 'low'),
-      stat('Monotonie', fixed(mono.monotony, 2), monoGrade.label, monoGrade.tone),
-      stat('Strain', bigNum(mono.strain), 'posledních 7 dní')),
-    h('p.note', 'Klouzavý ACWR dává všem dnům v okně stejnou váhu. EWMA váží čerstvé dny víc, což lépe odpovídá tomu, jak únava odeznívá — když se obě čísla rozcházejí, spolehni se na EWMA. Monotonie počítá dny volna jako nulu: pestrý týden se střídavě těžkými dny ji drží nízko.')));
+  /* ---- odchylka od plánu ---- */
+  const creep = C.rpeCreep(entries, blk.start);
+  if (creep.length) {
+    const lastCreep = creep.at(-1);
+    const cg = C.gradeCreep(lastCreep.avg);
+    root.append(card('Jak to reálně šlo', {
+      eyebrow: 'Skutečné RPE proti plánu',
+      action: h('button.btn.btn-sm', { onclick: () => nav('realita') }, icon('target', 14), 'Otevřít porovnání'),
+    },
+      h('div.grid.g3',
+        stat('Odchylka RPE poslední týden',
+          `${lastCreep.avg >= 0 ? '+' : '−'}${fixed(Math.abs(lastCreep.avg), 2)}`, cg.label, cg.tone),
+        stat('Zapsaných sérií', creep.reduce((s2, w) => s2 + w.n, 0), `z ${entries.length}`),
+        (() => {
+          const real = entries.filter((e) => e.actualRpe != null).map(C.setE1rm).filter(Boolean);
+          return stat('Nejlepší odhad 1RM', real.length ? W(Math.max(...real)) : '—', U());
+        })()),
+      h('p.note', 'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí. Je to nejpřímější signál, který z tréninku dostaneš.')));
+  }
 
   /* ---- tvrdé série ---- */
   const hs = C.hardSets(entries, blkE1rm, blk.start);

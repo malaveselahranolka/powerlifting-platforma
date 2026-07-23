@@ -188,40 +188,39 @@ export const gradeInol = (v, scope = 'session') =>
  * Charakter týdne. Objem a intenzita jsou dvě nezávislé osy a jedno číslo
  * je nepopíše.
  *
- * INOL je vážený objemem: jednička na 90 % přidá 0,1, ale 5×5 na 75 % přidá
- * 1,0. Kdyby se týden hodnotil jen podle INOL, vrcholící týden s maximálními
- * singly by vyšel jako „lehký" — přitom je na nervovou soustavu nejnáročnější
- * v celém bloku. Proto se tady čte i špičková intenzita.
+ * Objem se měří tvrdými sériemi na cvik a týden — to je metrika, na kterou
+ * se současná praxe sjednotila (Helms, Schoenfeld). Tonáž ani INOL to
+ * nezvládnou: tonáž odmění nekonečné lehké série, INOL zase podhodnotí
+ * maximální singly. Vrcholící týden se singly nad 90 % by podle INOL vyšel
+ * jako „lehký", přitom je na nervovou soustavu nejnáročnější v bloku.
+ * Proto se čte i špičková intenzita.
  *
  * Vrací { label, tone, volume, intensity, note }.
  */
 export function gradeWeek(week) {
-  const inolLevel = week.inolPerLift;
+  const sets = week.hardSetsPerLift ?? 0;
   const peak = week.peakIntensity ?? 0;
 
-  // osa objemu
-  const volume = inolLevel < 1 ? 'velmi nízký'
-    : inolLevel < 2 ? 'nízký'
-      : inolLevel < 3 ? 'střední'
-        : inolLevel < 4 ? 'vysoký' : 'extrémní';
+  // osa objemu — tvrdé série na jeden soutěžní cvik za týden
+  const volume = sets < 3 ? 'velmi nízký'
+    : sets < 6 ? 'nízký'
+      : sets < 12 ? 'střední'
+        : sets < 18 ? 'vysoký' : 'extrémní';
 
   // osa intenzity — špička rozhoduje, ne průměr
   const intensity = peak >= 90 ? 'maximální'
     : peak >= 85 ? 'těžká'
       : peak >= 75 ? 'střední' : 'lehká';
 
-  // Objemová pásma podle Hristova: do 2 lehké, 2–3 udržitelné,
-  // 3–4 vysoká zátěž, nad 4 za hranicí regenerace.
-  const lowVol = inolLevel < 2;
-  const midVol = inolLevel >= 2 && inolLevel < 3;
-  const highVol = inolLevel >= 3;
-  const extremeVol = inolLevel >= 4;
+  const lowVol = sets < 6;
+  const midVol = sets >= 6 && sets < 12;
+  const highVol = sets >= 12;
+  const extremeVol = sets >= 18;
 
   // Maximální intenzita není nikdy „lehký týden", ať je objemu jakkoli málo.
   if (peak >= 90) {
     if (highVol) return { label: 'Velmi náročné', tone: 'bad', volume, intensity, note: 'Maximální váhy i vysoký objem naráz. Nedávej dva týdny po sobě.' };
-    // „málo objemu" musí opravdu znamenat málo — nad INOL 1 je to plnohodnotný ostrý týden
-    if (inolLevel < 1) return { label: 'Ostré, málo objemu', tone: 'warn', volume, intensity, note: 'Typické vrcholení: nervová soustava jede naplno, svaly skoro nic nedostanou. Nízký INOL tady neznamená lehký trénink.' };
+    if (sets < 3) return { label: 'Ostré, málo objemu', tone: 'warn', volume, intensity, note: 'Typické vrcholení: nervová soustava jede naplno, svaly skoro nic nedostanou. Málo sérií tady neznamená lehký trénink.' };
     return { label: 'Ostrý týden', tone: 'warn', volume, intensity, note: 'Maximální váhy k tomu slušný objem. Náročné na hlavu i tělo.' };
   }
 
@@ -234,11 +233,11 @@ export function gradeWeek(week) {
   }
 
   // střední a nižší intenzita — rozhoduje objem
-  if (extremeVol) return { label: 'Objem za hranicí', tone: 'bad', volume, intensity, note: 'Nad 4 INOL se to nedá odregenerovat ani na středních vahách.' };
-  if (highVol) return { label: 'Objemová práce', tone: 'warn', volume, intensity, note: 'Hodně opakování na středních vahách. Únava se hromadí ve svalech.' };
+  if (extremeVol) return { label: 'Objem za hranicí', tone: 'bad', volume, intensity, note: 'Nad 18 tvrdých sérií na cvik se to nedá odregenerovat ani na středních vahách.' };
+  if (highVol) return { label: 'Objemová práce', tone: 'warn', volume, intensity, note: 'Hodně tvrdých sérií na středních vahách. Únava se hromadí ve svalech.' };
   if (midVol) return { label: 'Udržitelné', tone: 'ok', volume, intensity, note: 'Slušná dávka objemu, ze které se dá týden co týden regenerovat.' };
-  if (inolLevel < 1) return { label: 'Deload', tone: 'low', volume, intensity, note: 'Nízký objem i intenzita. Odlehčení, nebo úvod bloku.' };
-  return { label: 'Lehký týden', tone: 'low', volume, intensity, note: 'Malá dávka. Uprostřed bloku je to na adaptaci málo.' };
+  if (sets < 1) return { label: 'Deload', tone: 'low', volume, intensity, note: 'Žádná série na RPE 7 a výš. Odlehčení, přesně jak má vypadat.' };
+  return { label: 'Lehký týden', tone: 'low', volume, intensity, note: 'Málo tvrdých sérií. Uprostřed bloku je to na adaptaci málo.' };
 }
 
 /**
@@ -501,6 +500,96 @@ export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
 }
 
 const num2 = (v, d = 2) => (v == null ? '—' : String(round(v, d)).replace('.', ','));
+
+/* =========================================================
+   Plán versus realita
+   ========================================================= */
+
+/**
+ * E1RM ze skutečně odvedené série.
+ * Tohle je v RTS hlavní signál: nesleduje se, kolik kilogramů se nazvedalo,
+ * ale jak se chová odhad maxima. Když stejná váha na stejná opakování jede
+ * na vyšší RPE, forma klesá — i bez jediného testu.
+ */
+export function setE1rm(e) {
+  const rpe = e.actualRpe ?? e.rpe;
+  if (!(e.weight > 0) || !(e.reps > 0) || !(rpe > 0)) return null;
+  const v = E1RM.rpe(e.weight, e.reps, rpe);
+  return v == null ? null : round(v, 1);
+}
+
+/**
+ * Porovnání plánu se skutečností, položka po položce.
+ * Kladná odchylka znamená, že série byla těžší, než měla být.
+ */
+export function planVsActual(entries) {
+  return entries
+    .filter((e) => e.actualRpe != null && e.rpe != null)
+    .map((e) => ({
+      ...e,
+      delta: round(e.actualRpe - e.rpe, 1),
+      e1rmPlan: E1RM.rpe(e.weight, e.reps, e.rpe) ? round(E1RM.rpe(e.weight, e.reps, e.rpe), 1) : null,
+      e1rmReal: setE1rm(e),
+    }));
+}
+
+/**
+ * Únavové procento podle RTS: o kolik klesl odhad maxima od nejlepší série
+ * dne. Počítá se zvlášť pro každý cvik a den — porovnávat dřep s benčem
+ * nedává smysl.
+ *
+ * Tuchscherer bere 5 % jako běžný cíl pro pracovní sérii; nad 10 % už
+ * série nepřidávají kvalitu, jen únavu.
+ */
+export function fatigueDrop(entries, lift, date) {
+  const day = entries
+    .filter((e) => e.lift === lift && e.date === date)
+    .map((e) => ({ e, v: setE1rm(e) }))
+    .filter((x) => x.v != null);
+  if (day.length < 2) return null;
+
+  const peak = Math.max(...day.map((x) => x.v));
+  const last = day.at(-1).v;
+  return { peak: round(peak, 1), last: round(last, 1), drop: round(((peak - last) / peak) * 100, 1) };
+}
+
+export function gradeFatigueDrop(pct) {
+  if (pct == null) return { label: 'Málo dat', tone: 'low' };
+  if (pct < 2) return { label: 'Skoro bez únavy', tone: 'low' };
+  if (pct <= 6) return { label: 'Běžná dávka', tone: 'ok' };
+  if (pct <= 10) return { label: 'Hodně únavy', tone: 'warn' };
+  return { label: 'Přes hranu', tone: 'bad' };
+}
+
+/**
+ * Posun RPE po týdnech — kolik navíc oproti plánu závodník reálně vydal.
+ * Rostoucí odchylka při stejném plánu je nejčistší známka hromadící se únavy.
+ */
+export function rpeCreep(entries, startDate) {
+  const weeks = new Map();
+  for (const e of entries) {
+    if (e.actualRpe == null || e.rpe == null) continue;
+    const w = Math.max(1, Math.floor(daysBetween(startDate, e.date) / 7) + 1);
+    if (!weeks.has(w)) weeks.set(w, { week: w, sum: 0, n: 0, harder: 0, easier: 0 });
+    const row = weeks.get(w);
+    const d = e.actualRpe - e.rpe;
+    row.sum += d;
+    row.n++;
+    if (d > 0) row.harder++;
+    else if (d < 0) row.easier++;
+  }
+  return [...weeks.values()]
+    .sort((a, b) => a.week - b.week)
+    .map((w) => ({ ...w, avg: round(w.sum / w.n, 2) }));
+}
+
+export function gradeCreep(avg) {
+  if (avg == null) return { label: 'Bez dat', tone: 'low' };
+  if (avg <= -0.4) return { label: 'Lehčí, než plán', tone: 'low' };
+  if (avg < 0.3) return { label: 'Podle plánu', tone: 'ok' };
+  if (avg < 0.7) return { label: 'Těžší, než plán', tone: 'warn' };
+  return { label: 'Výrazně těžší', tone: 'bad' };
+}
 
 /* =========================================================
    Vnímaná zátěž — Fosterova metoda
