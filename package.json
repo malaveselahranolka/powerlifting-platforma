@@ -1,0 +1,11 @@
+{
+  "name": "platforma",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trenérský nástroj pro powerlifting",
+  "scripts": {
+    "start": "node serve.mjs",
+    "verify": "node verify.mjs"
+  }
+}
