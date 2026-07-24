@@ -28,11 +28,11 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 96 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 101 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
-expozice, nakládání osy v kilech i librách a váhové kategorie.
+expozice, výsledky ze zápasu, nakládání osy v kilech i librách a váhové kategorie.
 
 ## Co to umí
 
@@ -45,10 +45,11 @@ expozice, nakládání osy v kilech i librách a váhové kategorie.
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
+| **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík s časováním, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks a vliv tělesné váhy na koeficient |
 | **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 23 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Vysvětlivky** | 31 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 
@@ -60,6 +61,7 @@ expozice, nakládání osy v kilech i librách a váhové kategorie.
 | INOL | opakování ÷ (100 − intenzita) | Hristov |
 | Prilepin | pásma < 70 / 70–79 / 80–89 / ≥ 90 % | A. S. Prilepin |
 | Tvrdá série | RPE ≥ 7, nebo intenzita ≥ 70 % | odvozeno z mezníků MEV/MAV/MRV |
+| Těžké expozice | dny s alespoň jednou sérií ≥ 85/90/95 % | princip blokové periodizace, appka počítá přímo z dat |
 | ACWR | 7 dní ÷ průměrný týden z 28 dní | Gabbett (2016), kritika Impellizzeri (2020) |
 | ACWR EWMA | zátěž × λ + předchozí × (1 − λ), λ = 2/(N+1) | Williams a kol. (2017) |
 | sRPE | sRPE × počet sérií | Foster (2001), úprava McGuigan |
@@ -68,6 +70,7 @@ expozice, nakládání osy v kilech i librách a váhové kategorie.
 | Taper | −41 až −50 % objemu, 7–10 dní, držet intenzitu | Grgic a Mikulic (2020) |
 | APRE | ramp k AMRAP sérii, úprava −10 až +10 % podle opakování | Mann a kol. (2010) |
 | Pokusy | 91 % / 96,5 % / 102 % z E1RM | rozbor MS IPF 2012–2019 |
+| Úspěšnost pokusů | povedené ÷ platné pokusy × 100 | rozbor MS IPF 2016 (Stronger by Science) |
 | DOTS | součet × 500 ÷ polynom 4. stupně | ověřeno proti OpenPowerlifting |
 | IPF GL | součet × 100 ÷ (A − B·e^(−C·bw)) | IPF, koeficienty od 1. 5. 2020 |
 | Wilks | součet × 500 ÷ polynom 5. stupně | Wilks (1994) |
@@ -136,6 +139,31 @@ Ukládá se do stejného úložiště jako všechno ostatní, takže:
   z původního maxima se odvodí procento a to se použije na maxima nového závodníka.
   Dřep 170 kg u někoho s maximem 215 se tak stane 102,5 kg u někoho s maximem 130 —
   v obou případech 79 %.
+
+## Makrocyklus
+
+Analýza bloku i Stavba bloku pracují vždy s jedním mezocyklem. Makrocyklus je
+pohled napříč **všemi bloky jednoho svěřence v čase** — samostatná úroveň
+periodizace nad blokem (Issurin: mikrocyklus = týden, mezocyklus = blok,
+makrocyklus = sezóna složená z víc bloků).
+
+Obrazovka ukazuje:
+
+- **Bloky v čase** — fáze podle šablony (Akumulace / Transmutace / Realizace),
+  průměrná tonáž a špička, počet odlehčovacích týdnů a jak dopadl taper —
+  jedna řádka na blok, chronologicky.
+- **Objem a intenzita mezi bloky** — dva grafy, které řeknou, jestli sezóna
+  skutečně vlní (roste intenzita a klesá objem směrem k realizaci), nebo je
+  plochá a nediferencovaná.
+- **Odlehčení v čase** — kolik odlehčovacích týdnů proběhlo a jak pravidelně,
+  napříč celou historií svěřence, ne jen v rámci jednoho bloku. Appka tu
+  nehodnotí, jestli je mezera dobrá nebo špatná — publikovaný standard na to
+  neexistuje, jde jen o to mít to před sebou.
+- **Zápasy** — datum, tělesná váha, devět pokusů (povedl/nepovedl), z nich
+  spočítaný součet, DOTS, IPF GL a úspěšnost pokusů. Rozbor mistrovství světa
+  IPF ukázal, že vítězové dávají v průměru 8,46 z 9 pokusů, průměrný závodník
+  6,66 z 9 — je to metrika, kterou dává smysl sledovat napříč víc zápasy, ne
+  jen naplánovat pro jeden (na to slouží Závodní den).
 
 ## Import z Excelu
 

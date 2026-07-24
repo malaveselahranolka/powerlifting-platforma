@@ -90,6 +90,24 @@ function seed() {
     })),
   );
 
+  const meets = [
+    {
+      id: uid(), athleteId,
+      date: iso(addDays(new Date(), -70)), name: 'Krajský pohár', bw: 91.5,
+      attempts: [
+        { lift: 'squat', weight: 170, made: true },
+        { lift: 'squat', weight: 180, made: true },
+        { lift: 'squat', weight: 187.5, made: false },
+        { lift: 'bench', weight: 115, made: true },
+        { lift: 'bench', weight: 122.5, made: true },
+        { lift: 'bench', weight: 127.5, made: true },
+        { lift: 'deadlift', weight: 200, made: true },
+        { lift: 'deadlift', weight: 215, made: true },
+        { lift: 'deadlift', weight: 225, made: false },
+      ],
+    },
+  ];
+
   return {
     version: 1,
     unit: 'kg',
@@ -110,6 +128,7 @@ function seed() {
     ],
     entries,
     e1rmLog,
+    meets,
     drafts: {},
   };
 }
@@ -286,8 +305,24 @@ export function selectAthlete(id) {
 export const blockEntries = (id = state.activeBlock) =>
   state.entries.filter((e) => e.blockId === id);
 
+/** Všechny bloky jednoho svěřence, chronologicky podle začátku. */
+export const athleteBlocks = (athleteId = state.activeAthlete) =>
+  state.blocks.filter((b) => b.athleteId === athleteId).sort((x, y) => x.start.localeCompare(y.start));
+
 export const athleteEntries = () =>
   state.entries.filter((e) => e.athleteId === state.activeAthlete);
+
+/** Zápasy jednoho svěřence, chronologicky. */
+export const athleteMeets = (athleteId = state.activeAthlete) =>
+  (state.meets ?? []).filter((m) => m.athleteId === athleteId).sort((x, y) => x.date.localeCompare(y.date));
+
+export function addMeet(meet) {
+  commit((s) => { (s.meets ??= []).push({ id: uid(), ...meet }); });
+}
+
+export function deleteMeet(id) {
+  commit((s) => { s.meets = (s.meets ?? []).filter((m) => m.id !== id); });
+}
 
 export const total = (a = athlete()) =>
   a ? (a.e1rm.squat ?? 0) + (a.e1rm.bench ?? 0) + (a.e1rm.deadlift ?? 0) : 0;

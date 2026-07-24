@@ -338,6 +338,21 @@ export const GLOSSARY = [
     source: 'Reactive Training Systems (Tuchscherer); příbuzný přístup APRE.',
   },
   {
+    id: 'makrocyklus',
+    group: 'planovani',
+    term: 'Makrocyklus',
+    full: 'Sezóna — víc mezocyklů v čase',
+    short: 'Nejvyšší úroveň periodizace: řetězec bloků směřujících k jednomu nebo víc závodům.',
+    bands: [
+      { range: 'Mikrocyklus', label: 'Týden — appka: Charakter týdne', tone: 'low' },
+      { range: 'Mezocyklus', label: 'Blok, 3–6 týdnů — appka: Analýza bloku', tone: 'ok' },
+      { range: 'Makrocyklus', label: '6–12 měsíců, víc bloků — appka: Makrocyklus', tone: 'warn' },
+    ],
+    body: 'Blok sám o sobě neřekne, jestli sezóna vůbec sleduje smysluplný tvar. Makrocyklus je pohled napříč víc bloky: jestli objem a intenzita mezi nimi skutečně vlní (akumulace → transmutace → realizace), jak často a jak pravidelně přichází odlehčení, a jak si závodník vede zápas od zápasu — ne jen blok od bloku.',
+    how: 'Blokovou periodizaci lze v sezóně opakovat vícekrát, pokud závodník soutěží víckrát ročně — tradiční model počítá s 1–2 vrcholy za sezónu a 12–16týdenní přípravou, pokročilejší závodníci s víc soutěžemi obvykle jedou jen sílu a vrcholení mezi nimi, bez plné akumulace pokaždé.',
+    source: 'Issurin (blokové periodizace); Renaissance Periodization (Israetel) — makrocyklus jako 6–12měsíční rámec.',
+  },
+  {
     id: 'apre',
     group: 'planovani',
     term: 'APRE',
@@ -371,6 +386,21 @@ export const GLOSSARY = [
     body: 'Rozbor mistrovství světa IPF v klasickém trojboji 2012–2019: závodníci, kteří zvládli třetí pokus, otevírali v průměru na 91 % té váhy a druhý brali na 96 %.',
     how: 'Otvírák je pojistka, ne prohlášení. Po neplatném pokusu se váha nikdy nezvyšuje — buď se opakuje, nebo se ubere 2,5 kg. Skoky bývají 5 až 7,5 % u dřepu a tahu, 3 až 5 % u benče.',
     source: 'Rozbor výsledků mistrovství světa IPF 2012–2019.',
+  },
+  {
+    id: 'uspesnost-pokusu',
+    group: 'zavod',
+    term: 'Úspěšnost pokusů',
+    full: 'Kolik z devíti pokusů sedlo',
+    short: 'Metrika, kterou špičkoví koučové sledují napříč víc zápasy, ne jen v rámci jednoho.',
+    formula: 'úspěšnost = povedené pokusy ÷ platné pokusy × 100',
+    bands: [
+      { range: '~93 % (8,46 z 9)', label: 'Průměr vítězů na MS IPF', tone: 'ok' },
+      { range: '~74 % (6,66 z 9)', label: 'Průměr celého startovního pole', tone: 'warn' },
+    ],
+    body: 'Rozbor mistrovství světa IPF v klasickém trojboji ukázal jasný rozdíl mezi vítězi a zbytkem pole — ne v tom, jak těžké váhy zvedali, ale v tom, jak spolehlivě zvládali pokusy, které si vybrali. Jeden zápas málo řekne — je to metrika, která má smysl až v historii víc zápasů za sebou.',
+    how: 'Appka ji počítá v Makrocyklu ze zapsaných zápasů. Klesající úspěšnost napříč zápasy i při rostoucím součtu je signál, že se s attempt selection přestřeluje — ne že závodník slábne.',
+    source: 'Rozbor 2016 IPF World Classic Powerlifting Championships (Stronger by Science, rozhovor s Mattem Garym).',
   },
   {
     id: 'dots',

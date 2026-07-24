@@ -1105,6 +1105,23 @@ a { color: var(--red-lit); }
 
 .day-block { display: flex; flex-direction: column; gap: var(--s2); }
 
+/* povedl / nepovedl se pokus na zápase */
+.attempt-toggle {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--chalk-faint);
+  font-size: 14px;
+  cursor: pointer;
+  transition: color .16s var(--ease), background-color .16s var(--ease), border-color .16s var(--ease);
+}
+.attempt-toggle:hover { color: var(--chalk); border-color: var(--surface-3); }
+.attempt-toggle[data-made='true'] { background: var(--green); border-color: var(--green); color: #fff; }
+.attempt-toggle[data-made='false'] { background: var(--red); border-color: var(--red); color: #fff; }
+
 .day-head {
   display: flex;
   align-items: flex-end;

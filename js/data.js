@@ -118,10 +118,23 @@ export const LIFTS = {
 
 export const COMP_LIFTS = ['squat', 'bench', 'deadlift'];
 
+/* ---------- Fáze mezocyklu ----------
+   Blokovou periodizaci (Issurin) tvoří tři fáze, které se v makrocyklu
+   opakují: akumulace (objem, work capacity) → transmutace (objem dolů,
+   intenzita nahoru) → realizace (vrcholení, nejvyšší intenzita, nejnižší
+   objem). Barvy navazují na Prilepinovu paletu — zelená je nízkoprahová
+   práce, červená nejvyšší intenzita.                                    */
+export const BLOCK_PHASES = {
+  akumulace: { label: 'Akumulace', color: '#178F5C' },
+  transmutace: { label: 'Transmutace', color: '#E8B00A' },
+  realizace: { label: 'Realizace', color: '#D8232F' },
+};
+
 /* ---------- Šablony bloků ---------- */
 export const BLOCK_TEMPLATES = {
   hypertrophy: {
     label: 'Akumulace / objem',
+    phase: 'akumulace',
     weeks: 4,
     note: 'Nižší intenzita, vyšší objem. Konec bloku deload.',
     waves: [
@@ -133,6 +146,7 @@ export const BLOCK_TEMPLATES = {
   },
   strength: {
     label: 'Síla',
+    phase: 'transmutace',
     weeks: 4,
     note: 'Střední objem, rostoucí intenzita.',
     waves: [
@@ -144,6 +158,7 @@ export const BLOCK_TEMPLATES = {
   },
   peaking: {
     label: 'Vrcholení na závod',
+    phase: 'realizace',
     weeks: 5,
     note: 'Klesající objem, rostoucí intenzita, poslední týden taper.',
     waves: [

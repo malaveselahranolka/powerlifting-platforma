@@ -154,6 +154,26 @@ near('týden 2 — 3 série dohromady nad 85 % (1 dřep + 2 benč)', hxW(2).sets
 near('týden 3 — 1 série nad 95 %', hxW(3).sets[95], 1, 0);
 
 /* ---------------------------------------------------------------- */
+group('Výsledky ze zápasu');
+const meetAttempts = [
+  { lift: 'squat', weight: 180, made: true },
+  { lift: 'squat', weight: 190, made: false },
+  { lift: 'squat', weight: 185, made: true },
+  { lift: 'bench', weight: 120, made: true },
+  { lift: 'bench', weight: 127.5, made: true },
+  { lift: 'bench', weight: 132.5, made: false },
+  { lift: 'deadlift', weight: 220, made: true },
+  { lift: 'deadlift', weight: 230, made: true },
+  { lift: 'deadlift', weight: 240, made: false },
+];
+near('součet = nejtěžší povedené pokusy (185+127,5+230)', C.meetTotal(meetAttempts), 542.5, 0.001);
+near('nepovedený, i když těžší, se do součtu nepočítá', C.meetTotal([{ lift: 'squat', weight: 200, made: false }]), 0, 0);
+const msr = C.meetSuccessRate(meetAttempts);
+near('úspěšnost — počet povedených', msr.made, 6, 0);
+near('úspěšnost — počet platných pokusů', msr.total, 9, 0);
+near('úspěšnost — procento (6 z 9)', msr.pct, 67, 0.5);
+
+/* ---------------------------------------------------------------- */
 group('Nakládání osy');
 const kg180 = C.loadBar(180, { bar: 20, collars: 5, unit: 'kg' });
 near('180 kg vyjde přesně', kg180.total, 180, 0.001);

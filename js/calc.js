@@ -822,6 +822,37 @@ export function apreAdjust(sixRm, repsAchieved) {
 }
 
 /* =========================================================
+   Výsledky ze zápasu
+   ========================================================= */
+
+/**
+ * Součet ze zápasu — z každého cviku se počítá nejtěžší povedený pokus.
+ * Neplatný pokus se do součtu nepočítá, i kdyby byl na papíře těžší.
+ * attempts: [{ lift, weight, made }]
+ */
+export function meetTotal(attempts) {
+  const best = {};
+  for (const a of attempts) {
+    if (!a.made || !(a.weight > 0)) continue;
+    best[a.lift] = Math.max(best[a.lift] ?? 0, a.weight);
+  }
+  return Object.values(best).reduce((s, w) => s + w, 0);
+}
+
+/**
+ * Úspěšnost pokusů — kolik z devíti (nebo míň, pokud cvik chybí) sedlo.
+ * Rozbor MS IPF: vítězové dávají v průměru 8,46 z 9 pokusů, průměrný
+ * závodník 6,66 z 9 — je to metrika, kterou špičkoví koučové sledují
+ * napříč víc zápasy, ne jen v rámci jednoho.
+ */
+export function meetSuccessRate(attempts) {
+  const valid = attempts.filter((a) => a.weight > 0);
+  if (!valid.length) return null;
+  const made = valid.filter((a) => a.made).length;
+  return { made, total: valid.length, pct: round((made / valid.length) * 100, 0) };
+}
+
+/* =========================================================
    Závodní skóre
    ========================================================= */
 
