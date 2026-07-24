@@ -125,7 +125,7 @@ function build(view, render, nav) {
               ...COMP_LIFTS.map((k) => h('div.split-item', h('i', { style: { background: LIFTS[k].color } }), h('span.split-name', LIFTS[k].label)))))
         : h('div.chart-empty', 'Zapiš aspoň dvě maxima, ať je co kreslit.')),
 
-    card('Tento týden', { eyebrow: 'Naplánováno' },
+    card('Tento týden', { eyebrow: 'Dnes a zbytek týdne' },
       thisWeek(entries, nav))));
 
   /* ---- hlášky ---- */
@@ -186,8 +186,12 @@ function upcomingTopSet(entries) {
   return sameDay.reduce((best, e) => (!best || e.weight > best.weight ? e : best), null);
 }
 
+/**
+ * Dnes a zbytek týdne — ne celý týden od pondělí. Kdo se podívá ve čtvrtek,
+ * nezajímá ho, co bylo v pondělí; to už proběhlo.
+ */
 function thisWeek(entries, nav) {
-  const start = S.iso(S.mondayOf(new Date()));
+  const start = S.iso(new Date());
   const end = S.iso(S.addDays(S.mondayOf(new Date()), 7));
   const week = entries
     .filter((e) => e.date >= start && e.date < end)
@@ -195,7 +199,7 @@ function thisWeek(entries, nav) {
 
   if (!week.length) {
     return h('div.empty',
-      h('p.note', 'Tento týden nic naplánováno.'),
+      h('p.note', 'Do konce týdne už nic naplánováno.'),
       h('button.btn.btn-sm', { onclick: () => nav('program') }, 'Postavit blok'));
   }
 
