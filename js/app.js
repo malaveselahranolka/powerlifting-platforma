@@ -7,6 +7,7 @@ import { dashboard } from './views/dashboard.js';
 import { e1rmView } from './views/e1rm.js';
 import { rpeView } from './views/rpe.js';
 import { platesView } from './views/plates.js';
+import { apreView } from './views/apre.js';
 import { blockView } from './views/block.js';
 import { programView } from './views/program.js';
 import { meetView } from './views/meet.js';
@@ -22,6 +23,7 @@ const ROUTES = [
   { id: 'e1rm', label: 'E1RM', ic: 'calculator', title: 'Kalkulačka E1RM', sub: 'Z výkonu na odhad maxima a zpátky na váhu na ose.', view: e1rmView },
   { id: 'rpe', label: 'RPE tabulka', ic: 'grid', title: 'RPE tabulka', sub: 'Opakování × RPE převedené na procenta a kilogramy.', view: rpeView },
   { id: 'plates', label: 'Kotouče', ic: 'disc', title: 'Nakládání osy', sub: 'Co skutečně naložíš s kotouči, které máš.', view: platesView },
+  { id: 'apre', label: 'APRE', ic: 'zap', title: 'APRE', sub: 'Autoregulace podle skutečných opakování, ne podle pocitu.', view: apreView },
   { group: 'Trénink' },
   { id: 'realita', label: 'Plán vs. realita', ic: 'target', title: 'Plán vs. realita', sub: 'Jak trénink dopadl proti tomu, jak byl napsaný.', view: realityView },
   { id: 'block', label: 'Analýza bloku', ic: 'layers', title: 'Analýza bloku', sub: 'Objem, intenzita a charakter jednotlivých týdnů.', view: blockView },

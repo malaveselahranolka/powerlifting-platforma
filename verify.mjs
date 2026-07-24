@@ -123,6 +123,18 @@ near('monotonie = průměr ÷ směrodatná odchylka', m.monotony, mean / sd, 0.0
 near('strain = týdenní zátěž × monotonie', m.strain, 900 * (mean / sd), 1);
 
 /* ---------------------------------------------------------------- */
+group('APRE (Mann a kol. 2010)');
+const ramp100 = C.apreRamp(100);
+near('série 1 = 50 % ze 6RM', ramp100[0].weight, 50, 0.01);
+near('série 2 = 75 % ze 6RM', ramp100[1].weight, 75, 0.01);
+near('série 3 = 100 % ze 6RM', ramp100[2].weight, 100, 0.01);
+near('0–2 opakování → −10 %', C.apreAdjust(100, 1).weight, 90, 0.01);
+near('3–4 opakování → −5 %', C.apreAdjust(100, 4).weight, 95, 0.01);
+near('5–7 opakování → beze změny', C.apreAdjust(100, 6).weight, 100, 0.01);
+near('8–12 opakování → +5 %', C.apreAdjust(100, 10).weight, 105, 0.01);
+near('13 a víc opakování → +10 %', C.apreAdjust(100, 15).weight, 110, 0.01);
+
+/* ---------------------------------------------------------------- */
 group('Nakládání osy');
 const kg180 = C.loadBar(180, { bar: 20, collars: 5, unit: 'kg' });
 near('180 kg vyjde přesně', kg180.total, 180, 0.001);

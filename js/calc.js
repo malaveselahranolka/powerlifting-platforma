@@ -714,6 +714,48 @@ export function taperCheck(weeks) {
 }
 
 /* =========================================================
+   APRE — Autoregulatory Progressive Resistance Exercise
+   ========================================================= */
+
+/**
+ * Mann, Thyfault, Ivey, Sayers (2010): místo pevných kilo předem se série 3
+ * jede na AMRAP (co nejvíc opakování) na 100 % odhadovaného šestiopakovacího
+ * maxima. Podle skutečných opakování appka dopočítá váhu série 4 i doporučený
+ * start příště. Jiný princip než RPE/RTS — tady rozhoduje počet opakování
+ * proti cíli, ne subjektivní pocit.
+ */
+export function apreRamp(sixRm) {
+  return [
+    { set: 1, pct: 50, reps: 10, weight: roundToBar(sixRm * 0.5) },
+    { set: 2, pct: 75, reps: 6, weight: roundToBar(sixRm * 0.75) },
+    { set: 3, pct: 100, reps: null, weight: roundToBar(sixRm) },
+  ];
+}
+
+/**
+ * Pásma jsou procentní adaptace originální (librové, na konkrétní stroje)
+ * tabulky z originální studie — napříč cviky a v kilogramech dávají smysl
+ * jen jako procenta z aktuálního 6RM, ne jako pevné přírůstky v kg.
+ */
+export const APRE_BANDS = [
+  { max: 2, adjust: -0.10, label: '0–2 opakování' },
+  { max: 4, adjust: -0.05, label: '3–4 opakování' },
+  { max: 7, adjust: 0, label: '5–7 opakování' },
+  { max: 12, adjust: 0.05, label: '8–12 opakování' },
+  { max: Infinity, adjust: 0.10, label: '13 a víc opakování' },
+];
+
+/** Váha série 4 (a doporučený start příště) podle opakování dosažených na sérii 3. */
+export function apreAdjust(sixRm, repsAchieved) {
+  const band = APRE_BANDS.find((b) => repsAchieved <= b.max) ?? APRE_BANDS.at(-1);
+  return {
+    label: band.label,
+    adjustPct: round(band.adjust * 100, 0),
+    weight: roundToBar(sixRm * (1 + band.adjust)),
+  };
+}
+
+/* =========================================================
    Závodní skóre
    ========================================================= */
 

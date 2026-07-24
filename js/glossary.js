@@ -320,6 +320,24 @@ export const GLOSSARY = [
     how: 'Nejlíp funguje u zkušených závodníků, kteří umí odhadnout RPE. Začátečníkovi dej pevná procenta a RPE ho zatím jen nauč zapisovat.',
     source: 'Reactive Training Systems (Tuchscherer); příbuzný přístup APRE.',
   },
+  {
+    id: 'apre',
+    group: 'planovani',
+    term: 'APRE',
+    full: 'Autoregulatory Progressive Resistance Exercise',
+    short: 'Autoregulace podle počtu opakování na testovací sérii, ne podle pocitu.',
+    formula: 'Série 1: 50 % ze 6RM × 10 op. → Série 2: 75 % × 6 op. → Série 3: 100 % × AMRAP',
+    bands: [
+      { range: '0–2 op.', label: 'Série 4 i příští start: −10 %', tone: 'bad' },
+      { range: '3–4 op.', label: 'Série 4 i příští start: −5 %', tone: 'warn' },
+      { range: '5–7 op.', label: 'Beze změny', tone: 'ok' },
+      { range: '8–12 op.', label: 'Série 4 i příští start: +5 %', tone: 'ok' },
+      { range: '13 a víc op.', label: 'Série 4 i příští start: +10 %', tone: 'low' },
+    ],
+    body: 'Kde RTS RPE stojí na subjektivním pocitu (jak těžké to bylo), APRE stojí na tvrdém čísle: kolik opakování reálně vyšlo na sérii, která jde do momentu, kdy by další nešlo. Appka pásma bere jako procenta ze 6RM, ne jako pevná kila — originál z roku 2010 měřil v librách na konkrétních strojích (bench, leg press, hang clean), takže fixní přírůstky by na dřepu nebo v kilogramech neseděly.',
+    how: 'Vhodné pro závodníka, kterému RPE dlouho nesedí nebo si ho plete s únavou. Appka po uložení pamatuje 6RM na příště — nemusíš ho každou jednotku znovu odhadovat.',
+    source: 'Mann, Thyfault, Ivey, Sayers (2010), Journal of Strength and Conditioning Research.',
+  },
 
   /* ---------------- Závod ---------------- */
   {
