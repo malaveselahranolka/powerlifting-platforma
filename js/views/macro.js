@@ -124,7 +124,7 @@ function trendCards(blockStats) {
   const tonnageSeries = [{ color: 'var(--red)', points: blockStats.map((bs) => ({ date: bs.block.start, value: S.toDisplay(bs.avgTonnage) })) }];
   const peakSeries = [{ color: 'var(--blue)', points: blockStats.map((bs) => ({ date: bs.block.start, value: bs.peak })) }];
 
-  return h('div.grid.g-side',
+  return h('div.grid.g2',
     card('Objem mezi bloky', { eyebrow: `Průměrná týdenní tonáž na blok · ${U()}` },
       lineChart(tonnageSeries, { height: 190, fmt: (v) => num(v, 0) })),
     card('Intenzita mezi bloky', { eyebrow: 'Nejtěžší série bloku, v % z 1RM' },
@@ -208,7 +208,7 @@ function meetTrend(meets, a) {
     color: 'var(--blue)',
     points: meets.map((m) => { const sr = C.meetSuccessRate(m.attempts); return { date: m.date, value: sr ? sr.pct : 0 }; }),
   }];
-  return h('div.grid.g-side', { style: { marginTop: '16px' } },
+  return h('div.grid.g2', { style: { marginTop: '16px' } },
     h('div', h('div.eyebrow', { style: { marginBottom: '8px' } }, `Součet v čase · ${U()}`), lineChart(totalSeries, { height: 160, fmt: (v) => num(v, 0) })),
     h('div', h('div.eyebrow', { style: { marginBottom: '8px' } }, 'Úspěšnost pokusů v čase'), lineChart(srSeries, { height: 160, fmt: (v) => `${num(v, 0)} %`, yZero: true })));
 }
