@@ -178,7 +178,7 @@ export const GLOSSARY = [
       { range: 'nad +0,7', label: 'Výrazně těžší — zvaž deload', tone: 'bad' },
     ],
     body: 'Naplánuješ 5 opakování na RPE 8. Závodník to odjede a řekne, že to bylo na 9. Ta půlka bodu navíc je informace, kterou ti žádná tonáž nedá — stejná práce ho stála víc.',
-    how: 'Sleduj směr napříč týdny, ne jednotlivou sérii. Když odchylka roste tři týdny po sobě při stejném plánu, hromadí se únava a je čas odlehčit. Když je trvale záporná, plán zaostává za formou.',
+    how: 'Sleduj směr napříč týdny, ne jednotlivou sérii. Když odchylka roste tři týdny po sobě při stejném plánu, hromadí se únava a je čas odlehčit. Když je trvale záporná, plán zaostává za formou. Appka teď z toho samého dat rovnou spočítá i konkrétní číslo — v Plán vs. realita najdeš kartu „Doporučení pro příští týden": poměr skutečného a plánovaného odhadu maxima přepočtený na procenta, s tlačítkem, které tím rovnou přeškáluje váhy v následujícím týdnu. Není to nová hranice navíc — stejný princip appka používá při duplikaci bloku na jiného závodníka (relativní intenzita), jen v čase místo mezi lidmi.',
     source: 'Princip autoregulace podle Reactive Training Systems (Tuchscherer).',
   },
   {

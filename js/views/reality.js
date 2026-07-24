@@ -99,6 +99,25 @@ function build(root, render, nav) {
           'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí. Je to nejčistší signál, že je čas na deload. Naopak trvale nižší RPE znamená, že plán zaostává za formou a dá se přitlačit.'))));
   }
 
+  /* ---- doporučení pro příští týden ---- */
+  if (last) {
+    const targetWeek = last.week + 1;
+    const hasTargetWeek = targetWeek <= weeks;
+    const recs = COMP_LIFTS
+      .map((lift) => ({ lift, adj: C.weeklyAdjustment(scoped, lift, last.week, blk.start) }))
+      .filter((r) => r.adj);
+
+    if (recs.length) {
+      root.append(card('Doporučení pro příští týden', {
+        eyebrow: `Podle týdne ${last.week} — poměr skutečného a plánovaného odhadu maxima, ne jen odchylka RPE`,
+      },
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+          ...recs.map((r) => recommendationFlag(r, blk, targetWeek, hasTargetWeek, render))),
+        h('p.note', { style: { marginTop: '14px' } },
+          'Stejný princip appka používá při duplikaci bloku na jiného závodníka — relativní intenzita se přenese na nové maximum. Tady se použije v čase: z toho, jak zapsané série reálně vyšly, se přepočítá plán na příští týden místo lpění na maximu z počátku bloku.')));
+    }
+  }
+
   /* ---- vývoj odhadu maxima z reálných sérií ---- */
   const series = COMP_LIFTS.map((k) => {
     const pts = done
@@ -140,6 +159,41 @@ function build(root, render, nav) {
       }))));
 
   root.append(sessionEditor(scoped, blk, render));
+}
+
+/** Jeden řádek doporučení — cvik, čísla a případně tlačítko, co ho rovnou aplikuje. */
+function recommendationFlag(r, blk, targetWeek, hasTargetWeek, render) {
+  const { lift, adj } = r;
+  const tone = adj.pctChange <= -1 ? 'warn' : adj.pctChange >= 1 ? 'ok' : 'low';
+  return h('div.flag', { dataset: { tone } },
+    icon(tone === 'warn' ? 'alert' : 'check', 16),
+    h('span',
+      h('b', LIFTS[lift].label), ': skutečný odhad maxima ', h('b', Wu(adj.avgReal)),
+      ' proti plánovanému ', Wu(adj.avgPlan),
+      ` (${adj.n} ${adj.n === 1 ? 'zapsaná série' : 'zapsané série'}) — `,
+      h('b', `${adj.pctChange >= 0 ? '+' : ''}${fixed(adj.pctChange, 1)} %`), '. ',
+      hasTargetWeek
+        ? h('button.btn.btn-sm', {
+            style: { marginLeft: '10px' },
+            onclick: () => applyAdjustment(blk, lift, adj.ratio, targetWeek, render),
+          }, `Přeškálovat týden ${targetWeek}`)
+        : h('span.faint', `Týden ${targetWeek} v bloku není — zohledni to v příštím.`)));
+}
+
+/** Přeškáluje váhy zadaného cviku v cílovém týdnu podle poměru real/plán. */
+function applyAdjustment(blk, lift, ratio, targetWeek, render) {
+  let n = 0;
+  S.commit((s) => {
+    for (const e of s.entries) {
+      if (e.blockId !== blk.id || e.lift !== lift) continue;
+      const w = Math.max(1, Math.floor(C.daysBetween(blk.start, e.date) / 7) + 1);
+      if (w !== targetWeek) continue;
+      e.weight = C.roundToBar(e.weight * ratio, { unit: 'kg' });
+      n++;
+    }
+  });
+  toast(n ? `Přeškálováno ${n} ${n === 1 ? 'série' : 'sérií'} (${LIFTS[lift].label}, týden ${targetWeek})` : 'Nic k přeškálování', n ? 'ok' : 'bad');
+  render();
 }
 
 /** Otevře týden, kde se naposledy něco dělo — ne vždycky první. */

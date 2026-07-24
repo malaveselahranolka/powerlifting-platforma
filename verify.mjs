@@ -174,6 +174,20 @@ near('úspěšnost — počet platných pokusů', msr.total, 9, 0);
 near('úspěšnost — procento (6 z 9)', msr.pct, 67, 0.5);
 
 /* ---------------------------------------------------------------- */
+group('Doporučená úprava příštího týdne (RTS reprice)');
+const waEntries = [
+  { date: '2026-01-05', lift: 'squat', weight: 170, reps: 5, rpe: 8, actualRpe: 9 },
+  { date: '2026-01-06', lift: 'squat', weight: 170, reps: 5, rpe: 8, actualRpe: 9 },
+  { date: '2026-01-12', lift: 'squat', weight: 175, reps: 5, rpe: 8, actualRpe: 6 }, // týden 2 — nesmí ovlivnit týden 1
+];
+const wa = C.weeklyAdjustment(waEntries, 'squat', 1, '2026-01-05');
+near('bere jen zapsané série z cílového týdne', wa.n, 2, 0);
+near('plánovaný odhad maxima (170 kg @ RPE 8, 5 op. = 81,1 %)', wa.avgPlan, 17000 / 81.1, 0.05);
+near('skutečný odhad maxima (170 kg @ RPE 9, 5 op. = 83,7 %)', wa.avgReal, 17000 / 83.7, 0.05);
+near('poměr real ÷ plán', wa.ratio, (17000 / 83.7) / (17000 / 81.1), 0.001);
+near('bez zapsaných dat pro cvik/týden vrací null', C.weeklyAdjustment(waEntries, 'bench', 1, '2026-01-05') === null ? 1 : 0, 1, 0);
+
+/* ---------------------------------------------------------------- */
 group('Nakládání osy');
 const kg180 = C.loadBar(180, { bar: 20, collars: 5, unit: 'kg' });
 near('180 kg vyjde přesně', kg180.total, 180, 0.001);

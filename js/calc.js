@@ -557,6 +557,38 @@ export function planVsActual(entries) {
 }
 
 /**
+ * Doporučená úprava příštího týdne podle skutečného výkonu.
+ *
+ * rpeCreep/gradeCreep řeknou, že týden šel na vyšší RPE, než měl — tohle
+ * jde o krok dál a řekne o kolik procent přepočítat váhy dál. Princip je
+ * stejný, jako appka používá při duplikaci bloku na jiného závodníka
+ * (relativní intenzita se přenese na nové maximum): tady se stejná logika
+ * použije v čase — z toho, jak se aktuálně choval odhad maxima, se
+ * přepočítá plán na příště, místo aby zůstal u čísla z počátku bloku.
+ * Poměr < 1 znamená, že příští týden vyjde levnější; > 1, že jde přidat.
+ */
+export function weeklyAdjustment(entries, lift, week, startDate) {
+  const weekOf = (d) => Math.max(1, Math.floor(daysBetween(startDate, d) / 7) + 1);
+  const done = entries.filter((e) => e.lift === lift && e.actualRpe != null && weekOf(e.date) === week);
+  if (!done.length) return null;
+
+  const pairs = done
+    .map((e) => ({ plan: E1RM.rpe(e.weight, e.reps, e.rpe), real: setE1rm(e) }))
+    .filter((p) => p.plan != null && p.real != null);
+  if (!pairs.length) return null;
+
+  const avgPlan = pairs.reduce((s, p) => s + p.plan, 0) / pairs.length;
+  const avgReal = pairs.reduce((s, p) => s + p.real, 0) / pairs.length;
+  return {
+    n: pairs.length,
+    avgPlan: round(avgPlan, 1),
+    avgReal: round(avgReal, 1),
+    ratio: round(avgReal / avgPlan, 4),
+    pctChange: round((avgReal / avgPlan - 1) * 100, 1),
+  };
+}
+
+/**
  * Únavové procento podle RTS: o kolik klesl odhad maxima od nejlepší série
  * dne. Počítá se zvlášť pro každý cvik a den — porovnávat dřep s benčem
  * nedává smysl.
