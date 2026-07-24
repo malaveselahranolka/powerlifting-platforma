@@ -27,7 +27,18 @@ function summarizeBlock(b, a) {
   const peak = Math.max(0, ...weeks.map((w) => w.peakIntensity ?? 0));
   const deloadWeeks = weeks.filter((w) => C.gradeWeek(w).label === 'Deload').length;
   const taper = weeks.length >= 2 ? C.taperCheck(weeks) : null;
-  return { block: b, an, avgTonnage, peak, deloadWeeks, taper };
+
+  // která konkrétní série špičku způsobila — appka to jinak jen vypočítá,
+  // nikde neukáže z čeho, a číslo pak vypadá jako z čistého vzduchu
+  let peakSource = null;
+  for (const e of entries) {
+    const e1 = e1rm[e.lift] ?? 0;
+    if (!(e1 > 0)) continue;
+    const pct = C.intensity(e, e1);
+    if (!peakSource || pct > peakSource.pct) peakSource = { pct, lift: e.lift, date: e.date, weight: e.weight };
+  }
+
+  return { block: b, an, avgTonnage, peak, deloadWeeks, taper, peakSource };
 }
 
 /** Všechny týdny všech bloků na skutečné kalendářní datum, chronologicky. */
@@ -93,7 +104,12 @@ function blockRow(bs) {
       { num: true, value: W(bs.avgTonnage, 0) },
       {
         num: true,
-        value: h('b', { style: { color: bs.peak >= 90 ? 'var(--red-lit)' : bs.peak >= 85 ? 'var(--yellow)' : 'var(--chalk)' } }, `${fixed(bs.peak, 0)} %`),
+        value: h('b', {
+          style: { color: bs.peak >= 90 ? 'var(--red-lit)' : bs.peak >= 85 ? 'var(--yellow)' : 'var(--chalk)' },
+          title: bs.peakSource
+            ? `${LIFTS[bs.peakSource.lift]?.label ?? bs.peakSource.lift}, ${shortDate(bs.peakSource.date)}: ${W(bs.peakSource.weight, 1)} ${U()} (${fixed(bs.peakSource.pct, 1)} % z tehdejšího maxima)`
+            : undefined,
+        }, `${fixed(bs.peak, 0)} %`),
       },
       { num: true, value: bs.deloadWeeks || h('span.faint', '0') },
       t ? tag(t.label, t.tone) : h('span.faint', '—'),

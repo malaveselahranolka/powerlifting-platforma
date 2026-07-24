@@ -137,9 +137,13 @@ export function lineChart(series, opts = {}) {
       'vector-effect': 'non-scaling-stroke',
     }));
     if (sr.dots !== false) {
-      for (const p of pts) {
-        svg.append(s('circle', { cx: p[0], cy: p[1], r: 2.6, fill: 'var(--bg)', stroke: sr.color, 'stroke-width': 1.8 }));
-      }
+      sr.points.forEach((p, idx) => {
+        const [cx, cy] = pts[idx];
+        const xLabel = numeric ? (xFmt ? xFmt(p.x) : num(p.x, 0)) : shortDate(p.date);
+        svg.append(s('circle', {
+          cx, cy, r: 2.6, fill: 'var(--bg)', stroke: sr.color, 'stroke-width': 1.8, style: 'cursor: pointer',
+        }, s('title', {}, `${xLabel}: ${fmt(p.value)}`)));
+      });
     }
   });
 

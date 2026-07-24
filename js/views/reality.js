@@ -5,7 +5,7 @@ import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS } from '../data.js';
 import { W, U, Wu, liftDot, liftName, empty, rpeLabel } from './_util.js';
 
-const st = { openWeek: null, filter: 'main' };
+const st = { openWeek: null, filter: 'main', applied: new Set() };
 
 export function realityView(nav) {
   const root = h('div.view');
@@ -112,7 +112,7 @@ function build(root, render, nav) {
         eyebrow: `Podle týdne ${last.week} — poměr skutečného a plánovaného odhadu maxima, ne jen odchylka RPE`,
       },
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-          ...recs.map((r) => recommendationFlag(r, blk, targetWeek, hasTargetWeek, render))),
+          ...recs.map((r) => recommendationFlag(r, blk, scoped, targetWeek, hasTargetWeek, render))),
         h('p.note', { style: { marginTop: '14px' } },
           'Stejný princip appka používá při duplikaci bloku na jiného závodníka — relativní intenzita se přenese na nové maximum. Tady se použije v čase: z toho, jak zapsané série reálně vyšly, se přepočítá plán na příští týden místo lpění na maximu z počátku bloku.')));
     }
@@ -162,9 +162,19 @@ function build(root, render, nav) {
 }
 
 /** Jeden řádek doporučení — cvik, čísla a případně tlačítko, co ho rovnou aplikuje. */
-function recommendationFlag(r, blk, targetWeek, hasTargetWeek, render) {
+function recommendationFlag(r, blk, scoped, targetWeek, hasTargetWeek, render) {
   const { lift, adj } = r;
   const tone = adj.pctChange <= -1 ? 'warn' : adj.pctChange >= 1 ? 'ok' : 'low';
+  const key = `${blk.id}|${lift}|${targetWeek}`;
+  const already = st.applied.has(key);
+
+  const targetEntries = hasTargetWeek
+    ? scoped.filter((e) => e.lift === lift && Math.max(1, Math.floor(C.daysBetween(blk.start, e.date) / 7) + 1) === targetWeek)
+    : [];
+  const preview = targetEntries.length
+    ? `${Wu(targetEntries[0].weight)} → ${Wu(C.roundToBar(targetEntries[0].weight * adj.ratio))}`
+    : null;
+
   return h('div.flag', { dataset: { tone } },
     icon(tone === 'warn' ? 'alert' : 'check', 16),
     h('span',
@@ -172,16 +182,23 @@ function recommendationFlag(r, blk, targetWeek, hasTargetWeek, render) {
       ' proti plánovanému ', Wu(adj.avgPlan),
       ` (${adj.n} ${adj.n === 1 ? 'zapsaná série' : 'zapsané série'}) — `,
       h('b', `${adj.pctChange >= 0 ? '+' : ''}${fixed(adj.pctChange, 1)} %`), '. ',
-      hasTargetWeek
-        ? h('button.btn.btn-sm', {
-            style: { marginLeft: '10px' },
-            onclick: () => applyAdjustment(blk, lift, adj.ratio, targetWeek, render),
-          }, `Přeškálovat týden ${targetWeek}`)
-        : h('span.faint', `Týden ${targetWeek} v bloku není — zohledni to v příštím.`)));
+      !hasTargetWeek && h('span.faint', `Týden ${targetWeek} v bloku není — zohledni to v příštím.`),
+      hasTargetWeek && already && h('span', tag('Přeškálováno', 'ok')),
+      hasTargetWeek && !already && h('span',
+        preview && h('span.faint.mono', { style: { marginRight: '10px' } }, preview),
+        h('button.btn.btn-sm', {
+          onclick: () => applyAdjustment(blk, lift, adj.ratio, targetWeek, key, render),
+        }, `Přeškálovat týden ${targetWeek}`))));
 }
 
-/** Přeškáluje váhy zadaného cviku v cílovém týdnu podle poměru real/plán. */
-function applyAdjustment(blk, lift, ratio, targetWeek, render) {
+/**
+ * Přeškáluje váhy zadaného cviku v cílovém týdnu podle poměru real/plán.
+ * Označí se jako hotové (key v st.applied) — jinak by druhé kliknutí na
+ * stejné tlačítko vynásobilo už přeškálovanou váhu znovu tím samým
+ * poměrem, místo aby nic nedělalo.
+ */
+function applyAdjustment(blk, lift, ratio, targetWeek, key, render) {
+  if (st.applied.has(key)) return;
   let n = 0;
   S.commit((s) => {
     for (const e of s.entries) {
@@ -192,6 +209,7 @@ function applyAdjustment(blk, lift, ratio, targetWeek, render) {
       n++;
     }
   });
+  st.applied.add(key);
   toast(n ? `Přeškálováno ${n} ${n === 1 ? 'série' : 'sérií'} (${LIFTS[lift].label}, týden ${targetWeek})` : 'Nic k přeškálování', n ? 'ok' : 'bad');
   render();
 }
