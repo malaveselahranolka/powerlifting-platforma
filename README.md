@@ -38,11 +38,11 @@ v kilech i librách a váhové kategorie.
 
 | Obrazovka | K čemu |
 |---|---|
-| **Přehled** | Součet trojboje, DOTS / IPF GL, tonáž po týdnech, poměr zátěže, plán na tento týden |
+| **Přehled** | Součet trojboje, DOTS / IPF GL, tonáž po týdnech, skutečné RPE proti plánu, plán na tento týden |
 | **E1RM** | Odhad maxima z výkonu (RPE/RTS + 7 vzorců) a zpětně váha na ose pro cílové opakování × RPE |
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
-| **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, ACWR i EWMA, monotonie a strain, mapa bloku, CSV |
+| **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík s časováním, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks a vliv tělesné váhy na koeficient |

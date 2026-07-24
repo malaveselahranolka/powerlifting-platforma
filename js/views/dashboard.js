@@ -1,5 +1,5 @@
 import { h, card, stat, icon, num, bigNum, tag, table, shortDate } from '../ui.js';
-import { lineChart, stackedBars, gauge, barbell } from '../charts.js';
+import { lineChart, stackedBars, barbell } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS } from '../data.js';
@@ -13,7 +13,9 @@ export function dashboard(nav) {
   const entries = blk ? S.blockEntries(blk.id) : [];
   const analysis = C.analyzeBlock(entries, S.blockE1rm(blk, a), blk?.start);
   const ac = C.acwr(analysis.loadsByDay, new Date());
-  const acg = C.gradeAcwr(ac.ratio);
+  const creep = blk ? C.rpeCreep(entries, blk.start) : [];
+  const lastCreep = creep.at(-1);
+  const cg = lastCreep ? C.gradeCreep(lastCreep.avg) : null;
   const total = S.total(a);
   const wc = C.weightClass(a.bw, a.sex);
 
@@ -84,21 +86,17 @@ export function dashboard(nav) {
                 h('div.split-item', h('i', { style: { background: LIFTS[k].color } }), h('span.split-name', LIFTS[k].label)))))
         : h('div.chart-empty', 'Blok zatím nemá žádné jednotky.')),
 
-    card('Poměr zátěže', { eyebrow: 'ACWR · akutní 7 dní / chronická 28 dní' },
-      gauge(ac.ratio, {
-        max: 2,
-        sub: acg.label,
-        bands: [
-          { from: 0, to: 0.8, color: 'var(--blue)' },
-          { from: 0.8, to: 1.3, color: 'var(--green)' },
-          { from: 1.3, to: 1.5, color: 'var(--yellow)' },
-          { from: 1.5, to: 2, color: 'var(--red)' },
-        ],
-      }),
-      h('div.grid.g2',
-        stat('Akutní (7 dní)', bigNum(S.toDisplay(ac.acute)), U()),
-        stat('Chronická (týden)', bigNum(S.toDisplay(ac.chronic)), U())),
-      h('p.note', 'Pásmo 0,8–1,3 je bezpečné. Nad 1,5 rosteš rychleji, než se stíháš adaptovat.'))));
+    card('Jak to reálně šlo', {
+      eyebrow: 'Skutečné RPE proti plánu',
+      action: h('button.btn.btn-sm', { onclick: () => nav('realita') }, icon('target', 14), 'Otevřít'),
+    },
+      lastCreep
+        ? h('div',
+            h('div.grid.g2',
+              stat('Odchylka RPE (poslední týden)', `${lastCreep.avg >= 0 ? '+' : '−'}${num(Math.abs(lastCreep.avg), 2)}`, cg.label, cg.tone),
+              stat('Zapsaných sérií', creep.reduce((s, w) => s + w.n, 0), `z ${entries.length}`)),
+            h('p.note', 'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí.'))
+        : h('div.chart-empty', 'Zatím žádné zapsané skutečné RPE. Přidej ho v Plán vs. realita.'))));
 
   /* ---- trend E1RM ---- */
   const logs = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
