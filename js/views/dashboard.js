@@ -12,7 +12,6 @@ export function dashboard(nav) {
   const blk = S.block();
   const entries = blk ? S.blockEntries(blk.id) : [];
   const analysis = C.analyzeBlock(entries, S.blockE1rm(blk, a), blk?.start);
-  const ac = C.acwr(analysis.loadsByDay, new Date());
   const creep = blk ? C.rpeCreep(entries, blk.start) : [];
   const lastCreep = creep.at(-1);
   const cg = lastCreep ? C.gradeCreep(lastCreep.avg) : null;
@@ -121,7 +120,7 @@ export function dashboard(nav) {
   /* ---- hlášky ---- */
   if (analysis.weeks.length) {
     view.append(card('Co si hlídat', { eyebrow: 'Automatická kontrola bloku', action: h('button.btn.btn-sm', { onclick: () => nav('block') }, 'Otevřít analýzu') },
-      ...C.blockFlags(analysis, ac.ratio, (k) => LIFTS[k]?.label ?? k).map(flagRow)));
+      ...C.blockFlags(analysis, (k) => LIFTS[k]?.label ?? k).map(flagRow)));
   }
 
   return view;

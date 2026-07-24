@@ -429,29 +429,49 @@ export function analyzeBlock(entries, e1rms, startDate) {
 }
 
 /**
- * Varovné hlášky nad výsledkem analýzy.
+ * Kontrolní seznam nad výsledkem analýzy — u každé sledované věci appka řekne,
+ * jestli je v pořádku, nebo ne. Ne jen samá varování s jednou souhrnnou
+ * hláškou na konci: kouč má vidět i to, co v bloku sedí, ne jen co nesedí.
+ *
+ * ACWR se tu záměrně nepočítá (viz vysvětlivky, heslo „Co v appce záměrně
+ * není") — appka navíc vidí jen entries aktuálního bloku, ne souvislou
+ * historii závodníka. I naprosto rovná, neměnící se zátěž na začátku
+ * každého nového bloku proto vychází jako „skok v zátěži" jen proto, že
+ * appka nezná týdny před blokem — číslo by lhalo, ne radilo.
+ *
  * liftLabel dovolí pojmenovat cvik česky, aniž by calc.js znal texty UI.
  */
-export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
+export function blockFlags(analysis, liftLabel = (k) => k) {
   const flags = [];
   const lastWeek = analysis.weeks.at(-1)?.week;
+  const measuredWeeks = analysis.weeks.filter((w) => w.mainLifts);
 
-  for (const w of analysis.weeks) {
-    if (!w.mainLifts) continue;
+  /* ---- objem: tvrdé série na cvik a týden ---- */
+  let volumeIssue = false;
+  for (const w of measuredWeeks) {
     const sets = w.hardSetsPerLift ?? 0;
 
     if (sets >= 18) {
       flags.push({ tone: 'bad', text: `Týden ${w.week}: ${num2(sets, 1)} tvrdých sérií na hlavní cvik. Nad 18 se to už nedá odregenerovat — uber sérii nebo sjeď intenzitu.` });
+      volumeIssue = true;
     } else if (sets >= 12) {
       flags.push({ tone: 'warn', text: `Týden ${w.week}: ${num2(sets, 1)} tvrdých sérií na hlavní cvik. Vysoká zátěž, nedávej ji dva týdny po sobě.` });
+      volumeIssue = true;
     } else if (w.peakIntensity >= 90 && sets < 3) {
       flags.push({ tone: 'warn', text: `Týden ${w.week}: špička ${num2(w.peakIntensity, 0)} % z 1RM při ${num2(sets, 1)} tvrdých sériích. Objem je nízký, ale nervová soustava dostává zabrat — po takovém týdnu potřebuje závodník víc spánku, ne víc práce.` });
     } else if (sets < 1 && w.peakIntensity < 85 && w.week !== lastWeek && w.week !== 1) {
       // úvodní a poslední týden mají být lehké — hlásit se má jen propad uprostřed
       flags.push({ tone: 'low', text: `Týden ${w.week}: jen ${num2(sets, 1)} tvrdých sérií a špička ${num2(w.peakIntensity, 0)} %. Uprostřed bloku je to na adaptaci málo.` });
+      volumeIssue = true;
     }
   }
+  if (!volumeIssue && measuredWeeks.length) {
+    const avgSets = measuredWeeks.reduce((s, w) => s + (w.hardSetsPerLift ?? 0), 0) / measuredWeeks.length;
+    flags.push({ tone: 'ok', text: `Objem sedí: v průměru ${num2(avgSets, 1)} tvrdých sérií na cvik a týden, žádný týden nepřestřelil ani nepropadl.` });
+  }
 
+  /* ---- skok objemu mezi týdny ---- */
+  let jumpIssue = false;
   for (let i = 1; i < analysis.weeks.length; i++) {
     const prev = analysis.weeks[i - 1];
     const cur = analysis.weeks[i];
@@ -459,47 +479,47 @@ export function blockFlags(analysis, acwrRatio, liftLabel = (k) => k) {
       const jump = (cur.tonnage - prev.tonnage) / prev.tonnage;
       if (jump > 0.3) {
         flags.push({ tone: 'warn', text: `Objem skočil o ${Math.round(jump * 100)} % mezi týdnem ${prev.week} a ${cur.week}. Bezpečný přírůstek je do 10 % týdně.` });
+        jumpIssue = true;
+      }
+    }
+  }
+  if (!jumpIssue && analysis.weeks.length >= 2) {
+    flags.push({ tone: 'ok', text: 'Objem mezi týdny neskáče — největší mezitýdenní nárůst je v bezpečném pásmu.' });
+  }
+
+  /* ---- průměrná intenzita po cvicích ---- */
+  for (const l of analysis.mainLifts) {
+    if (!(l.avgIntensity > 0)) continue;
+    if (l.avgIntensity < 65) {
+      flags.push({ tone: 'low', text: `${liftLabel(l.lift)}: průměrná intenzita ${num2(l.avgIntensity, 1)} %. Na rozvoj síly je to málo, sedí spíš do objemové fáze.` });
+    } else if (l.avgIntensity >= 87) {
+      flags.push({ tone: 'warn', text: `${liftLabel(l.lift)}: průměrná intenzita ${num2(l.avgIntensity, 1)} %. Dlouhodobě to jede přes CNS — hlídej techniku a spánek.` });
+    } else {
+      flags.push({ tone: 'ok', text: `${liftLabel(l.lift)}: průměrná intenzita ${num2(l.avgIntensity, 1)} % — udržitelné pásmo na rozvoj síly.` });
+    }
+  }
+
+  /* ---- taper ---- */
+  if (analysis.weeks.length >= 3) {
+    const t = taperCheck(analysis.weeks);
+    if (t) {
+      if (t.drop < 30) {
+        // záporný drop znamená, že objem naopak narostl — „ubral −2 %" je nesmysl
+        const zmena = t.drop < 0
+          ? `naopak přidal ${num2(-t.drop, 0)} % objemu`
+          : `ubral jen ${num2(t.drop, 0)} % objemu`;
+        flags.push({ tone: 'warn', text: `Poslední týden ${zmena}. Před testem nebo závodem se snižuje o 41 až 50 % při zachované intenzitě.` });
+      } else if (!t.intensityKept) {
+        flags.push({ tone: 'warn', text: `Objem klesl o ${num2(t.drop, 0)} %, ale spadla i intenzita. Při vrcholení se od těžkých vah neodchází — jinak přijdeš o formu, ne o únavu.` });
+      } else if (t.drop > 65) {
+        flags.push({ tone: 'warn', text: `Poslední týden ubral ${num2(t.drop, 0)} % objemu — víc, než doporučuje výzkum (41–50 %). Tolik odpočinku může stát formu stejně jako moc práce.` });
+      } else {
+        flags.push({ tone: 'ok', text: `Poslední týden ubral ${num2(t.drop, 0)} % objemu a držel intenzitu — sedí to na taper.` });
       }
     }
   }
 
-  for (const l of analysis.mainLifts) {
-    if (l.avgIntensity > 0 && l.avgIntensity < 65) {
-      flags.push({ tone: 'low', text: `${liftLabel(l.lift)}: průměrná intenzita ${num2(l.avgIntensity, 1)} %. Na rozvoj síly je to málo, sedí spíš do objemové fáze.` });
-    }
-    if (l.avgIntensity >= 87) {
-      flags.push({ tone: 'warn', text: `${liftLabel(l.lift)}: průměrná intenzita ${num2(l.avgIntensity, 1)} %. Dlouhodobě to jede přes CNS — hlídej techniku a spánek.` });
-    }
-  }
-
-  const g = gradeAcwr(acwrRatio);
-  if (g.tone === 'bad' || g.tone === 'warn') {
-    flags.push({ tone: g.tone, text: `Poměr akutní ku chronické zátěži je ${num2(acwrRatio)} — ${g.label.toLowerCase()}. Bezpečné pásmo je 0,8 až 1,3.` });
-  }
-
-  if (analysis.weeks.length >= 3) {
-    const t = taperCheck(analysis.weeks);
-    if (t && t.drop < 30) {
-      // záporný drop znamená, že objem naopak narostl — „ubral −2 %" je nesmysl
-      const zmena = t.drop < 0
-        ? `naopak přidal ${num2(-t.drop, 0)} % objemu`
-        : `ubral jen ${num2(t.drop, 0)} % objemu`;
-      flags.push({ tone: 'warn', text: `Poslední týden ${zmena}. Před testem nebo závodem se snižuje o 41 až 50 % při zachované intenzitě.` });
-    } else if (t && !t.intensityKept && t.drop >= 30) {
-      flags.push({ tone: 'warn', text: `Objem klesl o ${num2(t.drop, 0)} %, ale spadla i intenzita. Při vrcholení se od těžkých vah neodchází — jinak přijdeš o formu, ne o únavu.` });
-    }
-  }
-
-  if (!flags.some((f) => f.tone === 'bad' || f.tone === 'warn')) {
-    const avgSets = analysis.weeks.length
-      ? analysis.weeks.reduce((s, w) => s + (w.hardSetsPerLift ?? 0), 0) / analysis.weeks.length
-      : 0;
-    flags.unshift({
-      tone: 'ok',
-      text: `Blok drží pohromadě: průměrná intenzita ${num2(analysis.total.avgIntensity, 1)} %, ${num2(avgSets, 1)} tvrdých sérií na cvik a týden, objem roste postupně.`,
-    });
-  }
-  return flags.slice(0, 6);
+  return flags.slice(0, 8);
 }
 
 const num2 = (v, d = 2) => (v == null ? '—' : String(round(v, d)).replace('.', ','));

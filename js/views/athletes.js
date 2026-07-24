@@ -195,6 +195,7 @@ function cloudCard(render) {
     toast('Cloud zapnut — data se teď ukládají i na internet');
     render();
   };
+  btn.addEventListener('click', enable);
 
   return card('Cloudová synchronizace', {
     eyebrow: 'Data na všech zařízeních — vypnuto',

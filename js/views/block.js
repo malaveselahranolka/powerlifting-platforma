@@ -91,7 +91,6 @@ function build(root, render, nav) {
   // zpětně vypadal lehčí, než byl
   const blkE1rm = S.blockE1rm(blk, a);
   const an = C.analyzeBlock(entries, blkE1rm, blk.start);
-  const ac = C.acwr(an.loadsByDay, new Date());
   const hs = C.hardSets(entries, blkE1rm, blk.start);
   const hx = C.heavyExposures(entries, blkE1rm, blk.start);
   // průměr tvrdých sérií za týden pro jeden konkrétní cvik — týdny bez té
@@ -343,7 +342,7 @@ function build(root, render, nav) {
           h('b', 'Vrcholení s jedním top singlem'), ' bude v téhle zóně pod pásmem vždycky a je to v pořádku.'))),
 
     card('Co si hlídat', { eyebrow: 'Automatická kontrola' },
-      ...C.blockFlags(an, ac.ratio, (k) => LIFTS[k]?.label ?? k).map(flagRow),
+      ...C.blockFlags(an, (k) => LIFTS[k]?.label ?? k).map(flagRow),
       h('p.note', 'Kontrola vychází z tvrdých sérií na cvik a týden (RPE ≥ 7), špičkové intenzity a Prilepinových pásem. Doplňkové cviky se do intenzitních metrik nepočítají — nemají 1RM.'))));
 
   /* ---- editor ---- */
