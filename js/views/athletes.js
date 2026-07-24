@@ -4,6 +4,7 @@ import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS } from '../data.js';
 import { W, U, Wu, initials, liftDot, empty } from './_util.js';
+import * as cloud from '../cloud.js';
 
 const st = { adding: false };
 
@@ -150,7 +151,129 @@ function build(root, render, nav) {
       h('button.btn', {
         onclick: () => { if (confirm('Smazat všechna data a načíst ukázkový obsah?')) S.resetAll(); },
       }, icon('trash', 16), 'Smazat všechna data')),
-    h('p.note', 'Data leží jen v tomhle prohlížeči (localStorage). Nikam se neodesílají. Před přeinstalací systému si udělej zálohu.')));
+    h('p.note', cloud.enabled()
+      ? 'Data se ukládají do tohoto prohlížeče i do tvého cloudu (viz níže). Záloha do souboru se přesto hodí před velkými změnami.'
+      : 'Data leží zatím jen v tomhle prohlížeči (localStorage). Chceš je mít na všech zařízeních? Zapni cloud níž.')));
+
+  /* ---- cloudová synchronizace ---- */
+  root.append(cloudCard(render));
+}
+
+/* =========================================================
+   Cloudová synchronizace
+   ========================================================= */
+const SQL_SNIPPET = `create table if not exists sync (
+  id uuid primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table sync enable row level security;
+create policy "anon rw" on sync for all to anon using (true) with check (true);`;
+
+function cloudCard(render) {
+  if (cloud.enabled()) return cloudEnabledCard(render);
+
+  const draft = { url: '', key: '' };
+  const err = h('span.field-hint', { style: { color: 'var(--red-lit)' } });
+  const btn = h('button.btn.btn-primary', {}, icon('check', 16), 'Otestovat a zapnout');
+
+  const enable = async () => {
+    err.textContent = '';
+    const url = draft.url.trim();
+    const key = draft.key.trim();
+    if (!url || !key) { err.textContent = 'Vyplň URL projektu i anon klíč.'; return; }
+    btn.disabled = true;
+    btn.textContent = 'Ověřuji…';
+    const res = await cloud.testConnection(url, key);
+    btn.disabled = false;
+    clear(btn); btn.append(icon('check', 16), 'Otestovat a zapnout');
+    if (!res.ok) { err.textContent = res.error; return; }
+    const syncId = cloud.newSyncId();
+    cloud.setConfig({ url, key, syncId, cloudUpdatedAt: null });
+    // hned nahraj aktuální data
+    await cloud.pushNow(JSON.stringify(S.state));
+    toast('Cloud zapnut — data se teď ukládají i na internet');
+    render();
+  };
+
+  return card('Cloudová synchronizace', {
+    eyebrow: 'Data na všech zařízeních — vypnuto',
+    action: tag('vypnuto', 'neutral'),
+  },
+    h('p.note', 'Zatím jsou data jen v tomhle prohlížeči. Když zapneš cloud, budou se automaticky ukládat na internet a uvidíš je i na telefonu nebo jiném počítači. Je to zdarma přes službu Supabase — nastavení zabere dvě minuty.'),
+
+    h('ol.cloud-steps',
+      h('li', 'Založ si zdarma projekt na ', h('a', { href: 'https://supabase.com', target: '_blank', rel: 'noopener' }, 'supabase.com'), ' (stačí přihlásit přes GitHub nebo e-mail).'),
+      h('li', 'V projektu otevři ', h('b', 'SQL Editor'), ', vlož tenhle kód a klikni Run:'),
+      h('pre.cloud-sql', h('code', SQL_SNIPPET),
+        h('button.btn.btn-sm.cloud-copy', {
+          onclick: () => { navigator.clipboard?.writeText(SQL_SNIPPET); toast('SQL zkopírováno'); },
+        }, icon('copy', 14), 'Kopírovat')),
+      h('li', 'V ', h('b', 'Project Settings → API'), ' najdeš ', h('b', 'Project URL'), ' a klíč ', h('b', 'anon public'), '. Vlož je sem:')),
+
+    h('div.form-row',
+      field('Project URL', h('input.input', {
+        placeholder: 'https://xxxx.supabase.co', style: { fontFamily: 'var(--font-mono)', fontSize: '13px' },
+        oninput: (e) => { draft.url = e.target.value; },
+      })),
+      field('anon public klíč', h('input.input', {
+        placeholder: 'eyJhbGci…', style: { fontFamily: 'var(--font-mono)', fontSize: '13px' },
+        oninput: (e) => { draft.key = e.target.value; },
+      }))),
+    err,
+    h('div.btn-row', btn),
+    h('p.note', 'Anon klíč je veřejný — je určený přímo do prohlížeče a smí být vidět. Tvoje data chrání náhodný sync kód, který se vytvoří při zapnutí. Klíč nikomu neposílej, sync kód taky ne.'));
+}
+
+function cloudEnabledCard(render) {
+  const c = cloud.config();
+  const st2 = cloud.status();
+  const stLabel = {
+    idle: 'nečinné', pending: 'čeká na uložení', pushing: 'ukládám…',
+    pulling: 'stahuji…', synced: 'uloženo', error: 'chyba', pushed: 'uloženo',
+  }[st2.state] ?? st2.state;
+  const stTone = st2.state === 'error' ? 'bad' : st2.state === 'synced' ? 'ok' : 'low';
+
+  return card('Cloudová synchronizace', {
+    eyebrow: 'Data se ukládají na internet',
+    action: tag(stLabel, stTone),
+  },
+    h('p.note', 'Zapnuto. Každá změna se automaticky ukládá do tvého cloudu. Na dalším zařízení otevři appku, zapni cloud stejným ', h('b', 'sync kódem'), ' níž a uvidíš stejná data.'),
+    st2.error && h('div.flag', { dataset: { tone: 'bad' } }, icon('alert', 16), h('span', 'Poslední synchronizace selhala: ' + st2.error)),
+
+    field('Tvůj sync kód', h('div.sync-code',
+      h('code', c.syncId),
+      h('button.btn.btn-sm', { onclick: () => { navigator.clipboard?.writeText(c.syncId); toast('Sync kód zkopírován'); } }, icon('copy', 14), 'Kopírovat')),
+      'Tenhle kód zadáš na dalším zařízení, aby vidělo stejná data. Ber ho jako heslo — kdo ho má, vidí tvoje data.'),
+
+    h('div.btn-row',
+      h('button.btn', {
+        onclick: async () => { await cloud.pushNow(JSON.stringify(S.state)); toast('Nahráno do cloudu'); render(); },
+      }, icon('upload', 16), 'Nahrát teď'),
+      h('button.btn', {
+        onclick: () => linkDevice(render),
+      }, icon('download', 16), 'Připojit k jinému kódu'),
+      h('button.btn', {
+        onclick: () => { if (confirm('Vypnout cloud? Data zůstanou v tomhle prohlížeči, ale přestanou se ukládat na internet.')) { cloud.disable(); toast('Cloud vypnut'); render(); } },
+      }, icon('x', 16), 'Vypnout cloud')));
+}
+
+/** Připojí tohle zařízení k existujícímu sync kódu z jiného zařízení. */
+async function linkDevice(render) {
+  const code = prompt('Zadej sync kód z druhého zařízení (najdeš ho tam v Cloudové synchronizaci):');
+  if (!code?.trim()) return;
+  const c = cloud.config();
+  cloud.setConfig({ ...c, syncId: code.trim(), cloudUpdatedAt: null });
+  toast('Sync kód nastaven — stahuji data…');
+  const res = await cloud.pull();
+  if (res?.data && Array.isArray(res.data.athletes)) {
+    localStorage.setItem(S.STORAGE_KEY, JSON.stringify(res.data));
+    location.reload();
+  } else {
+    toast('Pod tímhle kódem zatím nejsou žádná data — nahraju tahle.', 'bad');
+    await cloud.pushNow(JSON.stringify(S.state));
+    render();
+  }
 }
 
 /** Formulář na nového svěřence. Otevře se pod seznamem. */

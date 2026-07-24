@@ -14,6 +14,7 @@ import { scoreView } from './views/score.js';
 import { athletesView } from './views/athletes.js';
 import { glossaryView } from './views/glossary.js';
 import { realityView } from './views/reality.js';
+import * as cloud from './cloud.js';
 
 const ROUTES = [
   { id: 'dashboard', label: 'Přehled', ic: 'gauge', title: 'Přehled', sub: 'Kde svěřenec stojí a kam se hýbe.', view: dashboard },
@@ -124,4 +125,16 @@ function render() {
   window.scrollTo({ top: 0 });
 }
 
-render();
+/* Start: pokud je zapnutá cloudová synchronizace a v cloudu je novější verze,
+   stáhne ji a znovu načte stránku. Jinak rovnou vykreslí. */
+async function boot() {
+  if (cloud.enabled()) {
+    try {
+      const { pulled } = await cloud.bootstrap(S.STORAGE_KEY);
+      if (pulled) { location.reload(); return; }
+    } catch { /* offline nebo špatná konfigurace — jede se z lokálních dat */ }
+  }
+  render();
+}
+
+boot();

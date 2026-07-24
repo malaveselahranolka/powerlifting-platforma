@@ -1,7 +1,7 @@
 import { h, card, icon, num, fixed, tag, table, field, numInput, decimalInput, select, clear, toast, weekday, longDate } from '../ui.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { BLOCK_TEMPLATES, LIFTS, COMP_LIFTS, RPE_STEPS } from '../data.js';
+import { BLOCK_TEMPLATES, LIFTS, COMP_LIFTS, RPE_STEPS, WEEK_SPLITS, DEFAULT_WEEKDAYS, WEEKDAY_LABELS } from '../data.js';
 import { W, U, Wu, liftDot, empty, rpeLabel } from './_util.js';
 
 const DAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
@@ -15,6 +15,7 @@ const st = {
   name: '',
   template: 'strength',
   start: freshStart(),
+  days: null, // které dny v týdnu (0 = pondělí)
   rows: null,
   openWeek: 1,
 };
@@ -23,8 +24,15 @@ const st = {
 function persistDraft(a) {
   S.saveDraft(a.id, {
     name: st.name, template: st.template, start: st.start,
-    openWeek: st.openWeek, rows: st.rows,
+    days: st.days, openWeek: st.openWeek, rows: st.rows,
   });
+}
+
+/** Které dny plán skutečně používá — z uloženého draftu nebo odvozené z řádků. */
+function inferDays(saved) {
+  if (saved?.days?.length) return [...saved.days];
+  if (saved?.rows?.length) return [...new Set(saved.rows.map((r) => r.day))].sort((a, b) => a - b);
+  return [...DEFAULT_WEEKDAYS[3]];
 }
 
 /** Při přepnutí na jiného svěřence načte jeho rozpracovaný plán, nebo založí prázdný. */
@@ -34,6 +42,7 @@ function loadDraftFor(a) {
   st.name = saved?.name ?? '';
   st.template = saved?.template ?? 'strength';
   st.start = saved?.start ?? freshStart();
+  st.days = inferDays(saved);
   st.openWeek = saved?.openWeek ?? 1;
   st.rows = saved?.rows ?? null;
   if (saved) toast(`Načten rozpracovaný plán pro ${a.name.split(' ')[0]}`);
@@ -73,29 +82,51 @@ function newRow(week, day, lift, a, o = {}) {
   };
 }
 
-/** Předvyplní matici ze šablony. Dál se to edituje po řádcích. */
-function fromTemplate(key, a) {
+/**
+ * Vygeneruje celý plán z šablony a zvolených tréninkových dní.
+ * Každý den dostane rozvržení cviků podle počtu dní (viz WEEK_SPLITS),
+ * série/opakování/RPE se berou z vln šablony po týdnech.
+ */
+function generatePlan(key, days, a, { accessories = true } = {}) {
   const tpl = BLOCK_TEMPLATES[key];
-  const layout = [
-    { day: 0, main: 'squat', second: 'bench', acc: ['Předkopávání', 'Veslování'] },
-    { day: 2, main: 'bench', second: 'deadlift', acc: ['Tlak s jednoručkami'] },
-    { day: 4, main: 'deadlift', second: 'squat', acc: ['Zákopávání', 'Hyperextenze'] },
-  ];
+  const sorted = [...days].sort((x, y) => x - y);
+  const split = WEEK_SPLITS[sorted.length] ?? WEEK_SPLITS[3];
 
   const out = [];
-  tpl.waves.forEach((w, i) => {
-    const week = i + 1;
-    for (const d of layout) {
-      out.push(newRow(week, d.day, d.main, a, { sets: w.sets, reps: w.reps, rpe: w.rpe }));
-      out.push(newRow(week, d.day, d.second, a, { sets: 3, reps: w.reps + 2, rpe: Math.max(6, w.rpe - 1) }));
-      for (const name of d.acc) out.push(newRow(week, d.day, 'accessory', a, { name, sets: 3, reps: 12, rpe: 8, weight: 40 }));
-    }
+  tpl.waves.forEach((w, wi) => {
+    const week = wi + 1;
+    sorted.forEach((day, di) => {
+      const plan = split[di % split.length];
+      out.push(newRow(week, day, plan.main, a, { sets: w.sets, reps: w.reps, rpe: w.rpe }));
+      if (plan.second) {
+        out.push(newRow(week, day, plan.second, a, { sets: 3, reps: w.reps + 2, rpe: Math.max(6, w.rpe - 1) }));
+      }
+      if (accessories) {
+        for (const name of plan.acc ?? []) {
+          out.push(newRow(week, day, 'accessory', a, { name, sets: 3, reps: 12, rpe: 8, weight: 40 }));
+        }
+      }
+    });
   });
   return out;
 }
 
-const rows = (a) => (st.rows ??= fromTemplate(st.template, a));
+const rows = (a) => (st.rows ??= generatePlan(st.template, st.days ?? DEFAULT_WEEKDAYS[3], a));
 const weekCount = (all) => Math.max(1, ...all.map((r) => r.week));
+
+/** Přerozvrhne celý plán na nové dny. Ptá se, jen když je co přepsat. */
+function relayout(days, a, render) {
+  const next = [...days].sort((x, y) => x - y);
+  if (!next.length) { toast('Vyber aspoň jeden tréninkový den', 'bad'); return; }
+  if (st.rows?.length && !confirm(`Přerozvrhnout plán na ${next.length} ${dayWord(next.length)}? Ruční úpravy tabulky se přepíšou.`)) return;
+  st.days = next;
+  st.rows = generatePlan(st.template, next, a);
+  st.openWeek = 1;
+  persistDraft(a);
+  render();
+}
+
+const dayWord = (n) => (n === 1 ? 'den' : n < 5 ? 'dny' : 'dní');
 
 /* =========================================================
    Obrazovka
@@ -134,15 +165,28 @@ function build(root, render, nav) {
         {
           value: st.template,
           onchange: (e) => {
-            if (!confirm('Načíst šablonu? Ruční úpravy se přepíšou.')) { e.target.value = st.template; return; }
+            if (st.rows?.length && !confirm('Načíst šablonu? Ruční úpravy se přepíšou.')) { e.target.value = st.template; return; }
             st.template = e.target.value;
-            st.rows = fromTemplate(st.template, a);
+            st.rows = generatePlan(st.template, st.days, a);
             st.openWeek = 1;
             persistDraft(a);
             render();
           },
         }))),
-    h('p.note', BLOCK_TEMPLATES[st.template].note, ' Šablona je jen startovní bod — každý řádek se dá přepsat.')));
+    h('p.note', BLOCK_TEMPLATES[st.template].note, ' Šablona je jen startovní bod — každý řádek se dá přepsat.'),
+
+    /* ---- tréninkové dny ---- */
+    field('Tréninkové dny v týdnu',
+      h('div.daypick',
+        ...WEEKDAY_LABELS.map((label, wd) => h('button.daypick-btn', {
+          type: 'button',
+          'aria-pressed': String(st.days.includes(wd)),
+          onclick: () => {
+            const has = st.days.includes(wd);
+            relayout(has ? st.days.filter((d) => d !== wd) : [...st.days, wd], a, render);
+          },
+        }, label))),
+      `Vybráno ${st.days.length} ${dayWord(st.days.length)} — dny se automaticky vyplní soutěžními cviky. Pořadí i obsah pak upravíš níž.`)));
 
   /* ---- výběr týdne ---- */
   root.append(h('div.week-bar',

@@ -156,6 +156,60 @@ export const BLOCK_TEMPLATES = {
   },
 };
 
+/* ---------- Rozvržení tréninkového týdne ----------
+   Podle počtu tréninkových dní přiřadí soutěžní cviky na jednotlivé dny.
+   Cíl je každý soutěžní cvik zhruba dvakrát týdně — frekvence, kterou
+   současná praxe považuje za rozumný základ. `main` jede hlavní vlnu
+   (série/opakování/RPE ze šablony), `second` je lehčí doplňková práce,
+   `acc` jsou doplňkové cviky bez měřeného 1RM.                          */
+export const WEEK_SPLITS = {
+  1: [
+    { main: 'squat', second: 'bench', acc: ['Veslování', 'Hyperextenze'] },
+  ],
+  2: [
+    { main: 'squat', second: 'bench', acc: ['Předkopávání', 'Hyperextenze'] },
+    { main: 'deadlift', second: 'bench', acc: ['Veslování', 'Tlak s jednoručkami'] },
+  ],
+  3: [
+    { main: 'squat', second: 'bench', acc: ['Předkopávání', 'Veslování'] },
+    { main: 'bench', second: 'deadlift', acc: ['Tlak s jednoručkami'] },
+    { main: 'deadlift', second: 'squat', acc: ['Zákopávání', 'Hyperextenze'] },
+  ],
+  4: [
+    { main: 'squat', acc: ['Předkopávání', 'Zákopávání'] },
+    { main: 'bench', acc: ['Tlak s jednoručkami', 'Triceps'] },
+    { main: 'deadlift', acc: ['Hyperextenze', 'Veslování'] },
+    { main: 'bench', second: 'squat', acc: ['Stahování kladky'] },
+  ],
+  5: [
+    { main: 'squat', acc: ['Předkopávání'] },
+    { main: 'bench', acc: ['Tlak s jednoručkami'] },
+    { main: 'deadlift', acc: ['Hyperextenze'] },
+    { main: 'squat', second: 'bench', acc: ['Zákopávání'] },
+    { main: 'bench', acc: ['Triceps', 'Veslování'] },
+  ],
+  6: [
+    { main: 'squat', acc: ['Předkopávání'] },
+    { main: 'bench', acc: ['Tlak s jednoručkami'] },
+    { main: 'deadlift', acc: ['Hyperextenze'] },
+    { main: 'squat', acc: ['Zákopávání'] },
+    { main: 'bench', acc: ['Triceps'] },
+    { main: 'deadlift', second: 'squat', acc: ['Veslování'] },
+  ],
+};
+
+/** Výchozí dny v týdnu podle počtu (0 = pondělí … 6 = neděle). */
+export const DEFAULT_WEEKDAYS = {
+  1: [0],
+  2: [0, 3],
+  3: [0, 2, 4],
+  4: [0, 1, 3, 4],
+  5: [0, 1, 2, 3, 4],
+  6: [0, 1, 2, 3, 4, 5],
+};
+
+export const WEEKDAY_LABELS = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+
 /* ---------- Strategie pokusů na závodě ----------
    Kalibrováno podle rozboru mistrovství světa IPF v klasickém trojboji
    2012–2019: závodníci, kteří zvládli třetí pokus, otevírali v průměru

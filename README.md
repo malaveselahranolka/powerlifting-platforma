@@ -10,8 +10,17 @@ node serve.mjs
 
 Otevři `http://localhost:3000`. Žádná instalace, žádný build — čisté HTML, CSS a ES moduly.
 
-Data leží v `localStorage` prohlížeče a nikam se neodesílají. Zálohu si stáhneš
-v sekci **Svěřenci → Nastavení a data → Zálohovat vše (JSON)**.
+Data leží v `localStorage` prohlížeče. Zálohu do souboru stáhneš v sekci
+**Svěřenci → Nastavení a data → Zálohovat vše (JSON)**.
+
+## Cloudová synchronizace (volitelná)
+
+Ve výchozím stavu jsou data jen v jednom prohlížeči. Kdo je chce mít na všech
+zařízeních, zapne v **Svěřenci → Cloudová synchronizace** ukládání do vlastního
+Supabase projektu (zdarma). Aplikace pak po každé změně automaticky nahraje
+stav a při otevření na jiném zařízení (se stejným sync kódem) stáhne poslední
+verzi. Klient je čistý `fetch` proti Supabase REST — žádná závislost, funguje
+i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.js](js/cloud.js).
 
 ## Ověření výpočtů
 
@@ -82,7 +91,11 @@ verify.mjs             ověření vzorců proti oficiálním zdrojům
 
 ## Stavba bloku
 
-Plánovač je matice **týden × cvik**. Pro každý řádek se zvlášť zadává:
+Nejdřív vybereš **tréninkové dny v týdnu** (Po–Ne). Podle jejich počtu se plán
+automaticky vyplní soutěžními cviky tak, aby každý jel zhruba dvakrát týdně
+(rozvržení v `WEEK_SPLITS`). Přidání nebo ubrání dne plán rovnou přerozvrhne.
+
+Dál je plánovač matice **týden × cvik**. Pro každý řádek se zvlášť zadává:
 
 | Pole | Chování |
 |---|---|

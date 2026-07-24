@@ -2,8 +2,10 @@
 
 import { DEFAULT_INVENTORY_KG, DEFAULT_INVENTORY_LB, BLOCK_TEMPLATES } from './data.js';
 import { weightFor, roundToBar, parseDate, loadBar, daysBetween } from './calc.js';
+import * as cloud from './cloud.js';
 
 const KEY = 'pwr.v1';
+export const STORAGE_KEY = KEY;
 const listeners = new Set();
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
@@ -138,6 +140,8 @@ function persist() {
   } catch {
     /* plné úložiště — v paměti stav zůstává */
   }
+  // pokud je zapnutá cloudová synchronizace, naplánuj sloučený upload
+  cloud.schedulePush(() => JSON.stringify(state));
 }
 
 /** Zapíše změnu a upozorní posluchače. */
