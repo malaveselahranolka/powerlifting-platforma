@@ -44,7 +44,7 @@ detekce plateau na E1RM, nakládání osy v kilech i librách a váhové kategor
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
-| **Plán vs. realita** | Posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučená úprava příštího týdne s tlačítkem na přeškálování |
+| **Plán vs. realita** | Posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučená úprava zbývajících sérií s ruční editací váhy |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |

@@ -1,11 +1,11 @@
-import { h, card, stat, icon, num, fixed, tag, table, field, decimalInput, select, clear, toast, weekday } from '../ui.js';
+import { h, card, stat, icon, num, fixed, tag, table, field, decimalInput, numInput, inputNum, select, clear, toast, weekday, shortDate } from '../ui.js';
 import { lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS } from '../data.js';
 import { W, U, Wu, liftDot, liftName, empty, rpeLabel } from './_util.js';
 
-const st = { openWeek: null, filter: 'main', applied: new Set() };
+const st = { openWeek: null, filter: 'main', applied: new Set(), overrides: new Map() };
 
 export function realityView(nav) {
   const root = h('div.view');
@@ -101,20 +101,18 @@ function build(root, render, nav) {
 
   /* ---- doporučení pro příští týden ---- */
   if (last) {
-    const targetWeek = last.week + 1;
-    const hasTargetWeek = targetWeek <= weeks;
     const recs = COMP_LIFTS
-      .map((lift) => ({ lift, adj: C.weeklyAdjustment(scoped, lift, last.week, blk.start) }))
-      .filter((r) => r.adj);
+      .map((lift) => buildRecommendation(lift, scoped, blk, last.week, weeks))
+      .filter(Boolean);
 
     if (recs.length) {
-      root.append(card('Doporučení pro příští týden', {
+      root.append(card('Doporučení podle skutečného výkonu', {
         eyebrow: `Podle týdne ${last.week} — poměr skutečného a plánovaného odhadu maxima, ne jen odchylka RPE`,
       },
-        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-          ...recs.map((r) => recommendationFlag(r, blk, scoped, targetWeek, hasTargetWeek, render))),
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } },
+          ...recs.map((r) => recommendationBlock(r, blk, render))),
         h('p.note', { style: { marginTop: '14px' } },
-          'Stejný princip appka používá při duplikaci bloku na jiného závodníka — relativní intenzita se přenese na nové maximum. Tady se použije v čase: z toho, jak zapsané série reálně vyšly, se přepočítá plán na příští týden místo lpění na maximu z počátku bloku.')));
+          'Stejný princip appka používá při duplikaci bloku na jiného závodníka — relativní intenzita se přenese na nové maximum. Tady se použije v čase. Cílí na týden, kde ještě nemáš zapsané skutečné RPE — dokud nemáš odtrénovaný celý týden, jde o zbytek toho samého týdne, ne rovnou o další. Navrženou váhu appka jen našeptává, každá série jde přepsat ručně.')));
     }
   }
 
@@ -161,57 +159,85 @@ function build(root, render, nav) {
   root.append(sessionEditor(scoped, blk, render));
 }
 
-/** Jeden řádek doporučení — cvik, čísla a případně tlačítko, co ho rovnou aplikuje. */
-function recommendationFlag(r, blk, scoped, targetWeek, hasTargetWeek, render) {
-  const { lift, adj } = r;
+/**
+ * Sestaví doporučení pro jeden cvik.
+ *
+ * Cílí na týden, kde ještě NEJSOU zapsaná skutečná RPE pro tenhle cvik —
+ * dokud v posledním týdnu s daty ještě zbývají neodtrénované série, jde
+ * o zbytek toho samého týdne (targetWeek = last.week), ne rovnou o další.
+ * Bez týhle kontroly appka doporučovala přeškálovat týden 2, i když
+ * uživatel byl teprve v půlce týdne 1 — a k malé odchylce z reprice se
+ * navíc přičetl běžný týden-na-týden nárůst váhy podle šablony, takže
+ * výsledný skok vypadal mnohem větší, než co reprice sám o sobě dělá.
+ */
+function buildRecommendation(lift, scoped, blk, lastWeek, totalWeeks) {
+  const adj = C.weeklyAdjustment(scoped, lift, lastWeek, blk.start);
+  if (!adj) return null;
+
+  const weekOf = (d) => Math.max(1, Math.floor(C.daysBetween(blk.start, d) / 7) + 1);
+  const unlogged = (e) => e.lift === lift && e.actualRpe == null;
+  const stillOpenThisWeek = scoped.some((e) => unlogged(e) && weekOf(e.date) === lastWeek);
+  const targetWeek = stillOpenThisWeek ? lastWeek : lastWeek + 1;
+  const hasTargetWeek = targetWeek <= totalWeeks;
+  // jen neodtrénované série — přepsat váhu u série, která už proběhla
+  // a má zapsané skutečné RPE, by přepsalo historický záznam
+  const entries = hasTargetWeek
+    ? scoped.filter((e) => unlogged(e) && weekOf(e.date) === targetWeek).sort((a, b) => a.date.localeCompare(b.date))
+    : [];
+
+  return { lift, adj, targetWeek, hasTargetWeek, entries };
+}
+
+/** Souhrn doporučení + editovatelný seznam sérií, které by se přeškálovaly. */
+function recommendationBlock(r, blk, render) {
+  const { lift, adj, targetWeek, hasTargetWeek, entries } = r;
   const tone = adj.pctChange <= -1 ? 'warn' : adj.pctChange >= 1 ? 'ok' : 'low';
   const key = `${blk.id}|${lift}|${targetWeek}`;
   const already = st.applied.has(key);
 
-  const targetEntries = hasTargetWeek
-    ? scoped.filter((e) => e.lift === lift && Math.max(1, Math.floor(C.daysBetween(blk.start, e.date) / 7) + 1) === targetWeek)
-    : [];
-  const preview = targetEntries.length
-    ? `${Wu(targetEntries[0].weight)} → ${Wu(C.roundToBar(targetEntries[0].weight * adj.ratio))}`
-    : null;
-
-  return h('div.flag', { dataset: { tone } },
+  const summary = h('div.flag', { dataset: { tone } },
     icon(tone === 'warn' ? 'alert' : 'check', 16),
     h('span',
       h('b', LIFTS[lift].label), ': skutečný odhad maxima ', h('b', Wu(adj.avgReal)),
       ' proti plánovanému ', Wu(adj.avgPlan),
       ` (${adj.n} ${adj.n === 1 ? 'zapsaná série' : 'zapsané série'}) — `,
-      h('b', `${adj.pctChange >= 0 ? '+' : ''}${fixed(adj.pctChange, 1)} %`), '. ',
-      !hasTargetWeek && h('span.faint', `Týden ${targetWeek} v bloku není — zohledni to v příštím.`),
-      hasTargetWeek && already && h('span', tag('Přeškálováno', 'ok')),
-      hasTargetWeek && !already && h('span',
-        preview && h('span.faint.mono', { style: { marginRight: '10px' } }, preview),
-        h('button.btn.btn-sm', {
-          onclick: () => applyAdjustment(blk, lift, adj.ratio, targetWeek, key, render),
-        }, `Přeškálovat týden ${targetWeek}`))));
-}
+      h('b', `${adj.pctChange >= 0 ? '+' : ''}${fixed(adj.pctChange, 1)} %`), '.',
+      !hasTargetWeek && h('span.faint', ` Další týden v bloku není — zohledni to v příštím.`),
+      hasTargetWeek && already && h('span', ' ', tag(`Týden ${targetWeek} upraven`, 'ok'))));
 
-/**
- * Přeškáluje váhy zadaného cviku v cílovém týdnu podle poměru real/plán.
- * Označí se jako hotové (key v st.applied) — jinak by druhé kliknutí na
- * stejné tlačítko vynásobilo už přeškálovanou váhu znovu tím samým
- * poměrem, místo aby nic nedělalo.
- */
-function applyAdjustment(blk, lift, ratio, targetWeek, key, render) {
-  if (st.applied.has(key)) return;
-  let n = 0;
-  S.commit((s) => {
-    for (const e of s.entries) {
-      if (e.blockId !== blk.id || e.lift !== lift) continue;
-      const w = Math.max(1, Math.floor(C.daysBetween(blk.start, e.date) / 7) + 1);
-      if (w !== targetWeek) continue;
-      e.weight = C.roundToBar(e.weight * ratio, { unit: 'kg' });
-      n++;
-    }
-  });
-  st.applied.add(key);
-  toast(n ? `Přeškálováno ${n} ${n === 1 ? 'série' : 'sérií'} (${LIFTS[lift].label}, týden ${targetWeek})` : 'Nic k přeškálování', n ? 'ok' : 'bad');
-  render();
+  if (!hasTargetWeek || already || !entries.length) return summary;
+
+  // návrh appky se zapíše do st.overrides jen jednou — pak už to drží úpravy uživatele
+  for (const e of entries) {
+    if (!st.overrides.has(e.id)) st.overrides.set(e.id, C.roundToBar(e.weight * adj.ratio));
+  }
+
+  const apply = () => {
+    let n = 0;
+    S.commit((s) => {
+      for (const e of entries) {
+        const target = s.entries.find((x) => x.id === e.id);
+        const v = st.overrides.get(e.id);
+        if (target && v > 0) { target.weight = v; n++; }
+      }
+    });
+    st.applied.add(key);
+    toast(n ? `Týden ${targetWeek} (${LIFTS[lift].label}) upraven — ${n} ${n === 1 ? 'série' : 'sérií'}` : 'Nic k úpravě', n ? 'ok' : 'bad');
+    render();
+  };
+
+  return h('div', summary,
+    h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', marginLeft: '26px' } },
+      ...entries.map((e) => h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', flexWrap: 'wrap' } },
+        h('span.faint.mono', shortDate(e.date)),
+        h('span.faint', `${e.sets}×${e.reps}, plán ${W(e.weight)} ${U()} →`),
+        numInput({
+          value: inputNum(S.toDisplay(st.overrides.get(e.id)), 1), step: 2.5, style: { width: '90px' },
+          oninput: (ev) => { st.overrides.set(e.id, S.fromDisplay(Number(ev.target.value))); },
+        }),
+        h('span.faint', U()))),
+      h('button.btn.btn-sm.btn-primary', { style: { marginTop: '2px', alignSelf: 'flex-start' }, onclick: apply },
+        `Použít na týden ${targetWeek}`)));
 }
 
 /** Otevře týden, kde se naposledy něco dělo — ne vždycky první. */
