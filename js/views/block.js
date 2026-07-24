@@ -93,6 +93,7 @@ function build(root, render, nav) {
   const an = C.analyzeBlock(entries, blkE1rm, blk.start);
   const ac = C.acwr(an.loadsByDay, new Date());
   const hs = C.hardSets(entries, blkE1rm, blk.start);
+  const hx = C.heavyExposures(entries, blkE1rm, blk.start);
   // průměr tvrdých sérií za týden pro jeden konkrétní cvik — týdny bez té
   // série se počítají jako nula, jinak by cvik trénovaný jen občas vypadal nafouknutě
   const weekSpan = Math.max(1, an.weeks.length);
@@ -280,6 +281,39 @@ function build(root, render, nav) {
           })),
         h('p.note', { style: { marginTop: '12px' } },
           'Hodnocení bere průměr na jeden soutěžní cvik. Běžné pásmo je zhruba 6 až 14 tvrdých sérií týdně — zbytek objemu dodají varianty a doplňky, které se sem nepočítají. Nula v deloadovém týdnu je v pořádku: série na RPE 6 podnět netvoří, a přesně o to při odlehčení jde.'))));
+  }
+
+  /* ---- těžké expozice ---- */
+  if (hx.some((w) => w.exposures[85] > 0)) {
+    root.append(card('Těžké expozice', {
+      eyebrow: 'Kolikrát ses dotkl dané hranice intenzity — samostatné dny, ne série',
+      class: 'is-flush',
+    },
+      h('div', { style: { padding: '0 24px 24px' } },
+        table(
+          ['Týden', ...C.EXPOSURE_THRESHOLDS.map((t) => ({ label: `≥ ${t} %`, num: true }))],
+          [
+            ...hx.map((w) => ({
+              cells: [
+                h('b', `Týden ${w.week}`),
+                ...C.EXPOSURE_THRESHOLDS.map((t) => ({
+                  num: true,
+                  value: w.exposures[t]
+                    ? h('span', h('b', w.exposures[t]), h('span.faint', { style: { marginLeft: '5px', fontSize: '11px' } }, `· ${w.sets[t]} sér.`))
+                    : h('span.faint', '0'),
+                })),
+              ],
+            })),
+            {
+              class: 'is-on',
+              cells: [
+                h('b', 'Celkem za blok'),
+                ...C.EXPOSURE_THRESHOLDS.map((t) => ({ num: true, value: h('b', hx.reduce((s2, w) => s2 + w.exposures[t], 0)) })),
+              ],
+            },
+          ]),
+        h('p.note', { style: { marginTop: '12px' } },
+          'Expozice je samostatný den u cviku, kdy série dosáhla dané hranice nebo víc — víc těžkých sérií ve stejné jednotce je pořád jen jedna expozice. Bloková periodizace počítá s tím, že akumulace jich má málo a realizace před závodem hodně; appka jen počítá, žádná hranice tu není bezpečná nebo nebezpečná sama o sobě.'))));
   }
 
   /* ---- Prilepin ---- */

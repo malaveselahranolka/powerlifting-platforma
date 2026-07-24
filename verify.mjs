@@ -135,6 +135,25 @@ near('8–12 opakování → +5 %', C.apreAdjust(100, 10).weight, 105, 0.01);
 near('13 a víc opakování → +10 %', C.apreAdjust(100, 15).weight, 110, 0.01);
 
 /* ---------------------------------------------------------------- */
+group('Těžké expozice (85 / 90 / 95 %)');
+const hxE1rm = { squat: 200, bench: 100 };
+const hxEntries = [
+  { date: '2026-01-05', lift: 'squat', sets: 3, reps: 5, weight: 160 }, // 80 % — pod všemi prahy
+  { date: '2026-01-12', lift: 'squat', sets: 1, reps: 1, weight: 172 }, // 86 % — jen ≥85
+  { date: '2026-01-12', lift: 'bench', sets: 2, reps: 1, weight: 91 },  // 91 % — ≥85 i ≥90
+  { date: '2026-01-19', lift: 'squat', sets: 1, reps: 1, weight: 192 }, // 96 % — všechny tři
+];
+const hx = C.heavyExposures(hxEntries, hxE1rm, '2026-01-05');
+const hxW = (n) => hx.find((w) => w.week === n);
+near('týden 1 (80 %) — žádná expozice', hxW(1).exposures[85], 0, 0);
+near('týden 2 — 2 expozice ≥85 % (dřep i benč)', hxW(2).exposures[85], 2, 0);
+near('týden 2 — 1 expozice ≥90 % (jen benč)', hxW(2).exposures[90], 1, 0);
+near('týden 2 — 0 expozic ≥95 %', hxW(2).exposures[95], 0, 0);
+near('týden 3 — 96 % projde přes všechny tři prahy', hxW(3).exposures[95], 1, 0);
+near('týden 2 — 3 série dohromady nad 85 % (1 dřep + 2 benč)', hxW(2).sets[85], 3, 0);
+near('týden 3 — 1 série nad 95 %', hxW(3).sets[95], 1, 0);
+
+/* ---------------------------------------------------------------- */
 group('Nakládání osy');
 const kg180 = C.loadBar(180, { bar: 20, collars: 5, unit: 'kg' });
 near('180 kg vyjde přesně', kg180.total, 180, 0.001);

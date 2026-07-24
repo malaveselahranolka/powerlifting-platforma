@@ -145,6 +145,23 @@ export const GLOSSARY = [
     how: 'Appka teď osu objemu počítá přes tvrdé série (heslo o kousek výš) — to je metrika, na které se sjednotila současná trenérská praxe. INOL zůstává v kódu a v tomhle hesle jako reference, kdybys narazil na starší plán, co s ním počítá, ale nikde v appce se dnes jako hlavní číslo neukazuje.',
     source: 'Hristo Hristov, „How to Design Strength Training Programs using Prilepin\'s Table".',
   },
+  {
+    id: 'tezke-expozice',
+    group: 'objem',
+    term: 'Těžké expozice',
+    full: 'Kolikrát ses dotkl 85 / 90 / 95 % z 1RM',
+    short: 'Počet samostatných dnů u cviku, kdy série dosáhla dané hranice intenzity nebo víc.',
+    formula: 'Expozice na hranici X % = počet dnů u cviku, kdy alespoň jedna série ≥ X % z 1RM',
+    bands: [
+      { range: '≥ 85 %', label: 'Těžká práce, ale ještě daleko od maxima', tone: 'low' },
+      { range: '≥ 90 %', label: 'Skutečně těžké — nervová soustava to pozná', tone: 'warn' },
+      { range: '≥ 95 %', label: 'Prakticky maximální — vyhraněné pro vrchol bloku', tone: 'bad' },
+      { range: 'více sérií, jeden den', label: 'Počítá se jako jedna expozice, ne víc', tone: 'neutral' },
+    ],
+    body: 'Bloková periodizace (Akumulace → Transmutace → Realizace) staví na tom, že se specifičnost — práce blízko soutěžní intenzitě — postupně zvyšuje. Počet těžkých expozic je nejjednodušší způsob, jak tenhle nárůst vidět: akumulace by jich měla mít málo nebo žádné, realizace před závodem hodně. Víc sérií nad 90 % ve stejné jednotce se počítá jako jedna expozice — fyziologicky je to pořád jeden těžký den, ne tři.',
+    how: 'Appka nepřiřazuje k prahům žádné „bezpečné pásmo" — na rozdíl od Prilepina nebo taperu tu není publikovaný číselný standard. Sleduj trend přes týdny bloku: pokud realizační týden nemá jedinou expozici ≥ 90 %, blok postrádá specificitu; pokud jich má skoro každý den moc týdnů v řadě, riskuješ přetížení stejně jako u tvrdých sérií.',
+    source: 'Odvozeno z principu blokové periodizace (Verchoshansky; Issurin) — expozice samy appka počítá přímo z dat, nejde o publikovaný vzorec s vlastními koeficienty.',
+  },
 
   /* ---------------- Únava a zátěž ---------------- */
   {

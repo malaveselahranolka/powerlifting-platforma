@@ -28,11 +28,11 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 89 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 96 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
-odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, nakládání
-osy v kilech i librách a váhové kategorie.
+odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
+expozice, nakládání osy v kilech i librách a váhové kategorie.
 
 ## Co to umí
 
@@ -43,7 +43,7 @@ osy v kilech i librách a váhové kategorie.
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
-| **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
+| **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík s časováním, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks a vliv tělesné váhy na koeficient |

@@ -687,6 +687,52 @@ export function hardSets(entries, e1rms, startDate) {
 }
 
 /* =========================================================
+   Těžké expozice
+   ========================================================= */
+
+export const EXPOSURE_THRESHOLDS = [85, 90, 95];
+
+/**
+ * Těžké expozice — kolikrát (kolik samostatných dnů u daného cviku) se
+ * série dotkla dané hranice intenzity nebo šla nad ni. Bloková periodizace
+ * počítá s tím, že akumulace má expozic málo a realizace před závodem hodně —
+ * appka tohle jen počítá, žádná hranice tu není bezpečná/nebezpečná sama
+ * o sobě, jde o to, jestli nárůst k vrcholu bloku vůbec nastal.
+ *
+ * Exposice = samostatný den u cviku (ne série) — pár sérií nad 90 % ve
+ * stejné jednotce je pořád jedna "těžká expozice", ne tři.
+ */
+export function heavyExposures(entries, e1rms, startDate) {
+  const weeks = new Map();
+  for (const e of entries) {
+    const e1 = e1rms[e.lift] ?? 0;
+    if (!(e1 > 0)) continue;
+    const pct = intensity(e, e1);
+    const w = Math.max(1, Math.floor(daysBetween(startDate, e.date) / 7) + 1);
+    if (!weeks.has(w)) {
+      weeks.set(w, {
+        week: w,
+        sessions: Object.fromEntries(EXPOSURE_THRESHOLDS.map((t) => [t, new Set()])),
+        sets: Object.fromEntries(EXPOSURE_THRESHOLDS.map((t) => [t, 0])),
+      });
+    }
+    const wk = weeks.get(w);
+    for (const t of EXPOSURE_THRESHOLDS) {
+      if (pct < t) continue;
+      wk.sessions[t].add(`${e.date}|${e.lift}`);
+      wk.sets[t] += e.sets;
+    }
+  }
+  return [...weeks.values()]
+    .sort((a, b) => a.week - b.week)
+    .map((w) => ({
+      week: w.week,
+      exposures: Object.fromEntries(EXPOSURE_THRESHOLDS.map((t) => [t, w.sessions[t].size])),
+      sets: Object.fromEntries(EXPOSURE_THRESHOLDS.map((t) => [t, w.sets[t]])),
+    }));
+}
+
+/* =========================================================
    Taper
    ========================================================= */
 
