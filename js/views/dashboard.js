@@ -1,13 +1,20 @@
-import { h, card, stat, icon, num, bigNum, tag, table, shortDate } from '../ui.js';
+import { h, card, stat, icon, num, fixed, bigNum, tag, table, field, select, clear, shortDate } from '../ui.js';
 import { lineChart, stackedBars, barbell } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { LIFTS, COMP_LIFTS } from '../data.js';
+import { LIFTS, COMP_LIFTS, WELLNESS_ITEMS } from '../data.js';
 import { W, U, Wu, liftDot, liftName, flagRow, empty } from './_util.js';
 
 export function dashboard(nav) {
+  const root = h('div.view');
+  const render = () => { clear(root); build(root, render, nav); };
+  render();
+  return root;
+}
+
+function build(view, render, nav) {
   const a = S.athlete();
-  if (!a) return empty('Nejdřív si založ svěřence.', h('button.btn.btn-primary', { onclick: () => nav('athletes') }, 'Přidat svěřence'));
+  if (!a) { view.append(empty('Nejdřív si založ svěřence.', h('button.btn.btn-primary', { onclick: () => nav('athletes') }, 'Přidat svěřence'))); return; }
 
   const blk = S.block();
   const entries = blk ? S.blockEntries(blk.id) : [];
@@ -17,8 +24,6 @@ export function dashboard(nav) {
   const cg = lastCreep ? C.gradeCreep(lastCreep.avg) : null;
   const total = S.total(a);
   const wc = C.weightClass(a.bw, a.sex);
-
-  const view = h('div.view');
 
   /* ---- hlavní odečet ---- */
   const nextSet = upcomingTopSet(entries);
@@ -42,14 +47,17 @@ export function dashboard(nav) {
   /* ---- osobní maxima ---- */
   view.append(h('div.grid.g4',
     ...COMP_LIFTS.map((k) => {
-      const t = C.trend((S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id && x.lift === k)
+      const pts = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id && x.lift === k)
         .sort((x, y) => new Date(x.date) - new Date(y.date))
-        .map((x) => ({ date: x.date, value: x.value })));
+        .map((x) => ({ date: x.date, value: x.value }));
+      const p = C.plateauCheck(pts);
+      const g = C.gradePlateau(p);
       return h('div.stat',
         h('div.stat-label', LIFTS[k].label),
         h('div.stat-value', W(a.e1rm[k]), h('span.stat-unit', U())),
         h('div.faint.mono', { style: { fontSize: '11px' } },
-          t ? `${t.perMonth >= 0 ? '+' : ''}${num(t.perMonth, 1)} ${U()} / měsíc` : 'bez trendu'));
+          p ? `${p.perMonth >= 0 ? '+' : ''}${num(p.perMonth, 1)} ${U()} / měsíc` : 'bez trendu'),
+        p && h('div', { style: { marginTop: '4px' } }, tag(g.label, g.tone)));
     }),
     (() => {
       if (!blk) {
@@ -97,6 +105,9 @@ export function dashboard(nav) {
             h('p.note', 'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí.'))
         : h('div.chart-empty', 'Zatím žádné zapsané skutečné RPE. Přidej ho v Plán vs. realita.'))));
 
+  /* ---- pohoda (Hooperův index) ---- */
+  view.append(wellnessCard(a, render));
+
   /* ---- trend E1RM ---- */
   const logs = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
   const series = COMP_LIFTS.map((k) => ({
@@ -122,8 +133,46 @@ export function dashboard(nav) {
     view.append(card('Co si hlídat', { eyebrow: 'Automatická kontrola bloku', action: h('button.btn.btn-sm', { onclick: () => nav('block') }, 'Otevřít analýzu') },
       ...C.blockFlags(analysis, (k) => LIFTS[k]?.label ?? k).map(flagRow)));
   }
+}
 
-  return view;
+/**
+ * Hooper a Mackinnon (1995) — čtyři položky na škále 1–7. Appka ukládá
+ * jeden záznam na den, přepisuje ho druhý zápis týž den, a čte dnešní
+ * součet proti vlastnímu klouzavému průměru — žádná pevná hranice tu
+ * neplatí univerzálně.
+ */
+function wellnessCard(a, render) {
+  const today = S.iso(new Date());
+  const history = S.athleteWellness(a.id);
+  const todayEntry = history.find((w) => w.date === today) ?? {};
+  const todayIndex = C.hooperIndex(todayEntry);
+  const baseline = C.hooperBaseline(history, today);
+  const g = C.gradeHooper(todayIndex, baseline);
+
+  const save = (patch) => {
+    S.setWellness(a.id, today, {
+      sleep: todayEntry.sleep, stress: todayEntry.stress, fatigue: todayEntry.fatigue, soreness: todayEntry.soreness,
+      ...patch,
+    });
+    render();
+  };
+
+  return card('Jak se dnes cítíš', { eyebrow: 'Hooperův dotazník — spánek, stres, únava, bolestivost' },
+    h('div.form-row',
+      ...WELLNESS_ITEMS.map((item) => field(item.label,
+        select([{ value: 0, label: '—' }, ...[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: String(n) }))], {
+          value: todayEntry[item.key] || 0,
+          onchange: (e) => save({ [item.key]: Number(e.target.value) }),
+        }),
+        item.hint))),
+    todayIndex != null
+      ? h('div', { style: { marginTop: '14px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' } },
+          stat('Dnešní index', todayIndex, 'ze 4–28'),
+          baseline != null && stat('Vlastní průměr', fixed(baseline, 1), `posledních ${Math.min(history.filter((w) => w.date < today).length, 7)} dnů`),
+          tag(g.label, g.tone))
+      : h('p.note', { style: { marginTop: '14px' } }, 'Vyplň všechny čtyři položky, ať appka spočítá dnešní index.'),
+    h('p.note', { style: { marginTop: '14px' } },
+      'Hooper a Mackinnon (1995) tohle ověřili u plavců proti fyziologickým markerům přetrénování (76 % rozptylu). Na rozdíl od RPE nezachytí jen trénink — i to, co se do posilovny přineslo zvenku. Appka ho čte proti tvému vlastnímu průměru, ne proti univerzální hranici — ta neexistuje.'));
 }
 
 /** Nejtěžší série z nejbližší budoucí (nebo poslední) jednotky. */

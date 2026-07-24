@@ -28,28 +28,30 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 101 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 118 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
-expozice, výsledky ze zápasu, nakládání osy v kilech i librách a váhové kategorie.
+expozice, výsledky ze zápasu, doporučená úprava příštího týdne, Hooperův index,
+detekce plateau na E1RM, nakládání osy v kilech i librách a váhové kategorie.
 
 ## Co to umí
 
 | Obrazovka | K čemu |
 |---|---|
-| **Přehled** | Součet trojboje, DOTS / IPF GL, tonáž po týdnech, skutečné RPE proti plánu, plán na tento týden |
+| **Přehled** | Součet trojboje, DOTS / IPF GL, tonáž po týdnech, skutečné RPE proti plánu, Hooperův index pohody, detekce plateau na E1RM, plán na tento týden |
 | **E1RM** | Odhad maxima z výkonu (RPE/RTS + 7 vzorců) a zpětně váha na ose pro cílové opakování × RPE |
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
+| **Plán vs. realita** | Posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučená úprava příštího týdne s tlačítkem na přeškálování |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík s časováním, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks a vliv tělesné váhy na koeficient |
 | **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 31 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Vysvětlivky** | 33 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 
@@ -67,8 +69,11 @@ expozice, výsledky ze zápasu, nakládání osy v kilech i librách a váhové 
 | sRPE | sRPE × počet sérií | Foster (2001), úprava McGuigan |
 | Monotonie | průměr denní zátěže ÷ směrodatná odchylka | Foster (1998) |
 | Strain | týdenní zátěž × monotonie | Foster (1998) |
+| Hooperův index | spánek + stres + únava + bolestivost (1–7 každá) | Hooper a Mackinnon (1995) |
 | Taper | −41 až −50 % objemu, 7–10 dní, držet intenzitu | Grgic a Mikulic (2020) |
 | APRE | ramp k AMRAP sérii, úprava −10 až +10 % podle opakování | Mann a kol. (2010) |
+| Doporučená úprava | poměr skutečného a plánovaného E1RM z odvedených sérií | odvozeno z RPE tabulky, appka bez vlastních koeficientů |
+| Detekce plateau | posun přímky trendu vs. rozptyl bodů kolem ní | obecný statistický princip, appka bez publikovaného vzorce |
 | Pokusy | 91 % / 96,5 % / 102 % z E1RM | rozbor MS IPF 2012–2019 |
 | Úspěšnost pokusů | povedené ÷ platné pokusy × 100 | rozbor MS IPF 2016 (Stronger by Science) |
 | DOTS | součet × 500 ÷ polynom 4. stupně | ověřeno proti OpenPowerlifting |

@@ -108,6 +108,22 @@ function seed() {
     },
   ];
 
+  const wellnessPattern = [
+    { sleep: 2, stress: 2, fatigue: 2, soreness: 2 },
+    { sleep: 3, stress: 2, fatigue: 2, soreness: 3 },
+    { sleep: 2, stress: 3, fatigue: 3, soreness: 2 },
+    { sleep: 2, stress: 2, fatigue: 3, soreness: 3 },
+    { sleep: 3, stress: 3, fatigue: 3, soreness: 3 },
+    { sleep: 3, stress: 3, fatigue: 4, soreness: 3 },
+    { sleep: 4, stress: 3, fatigue: 4, soreness: 4 },
+    { sleep: 3, stress: 4, fatigue: 4, soreness: 4 },
+    { sleep: 4, stress: 4, fatigue: 5, soreness: 4 },
+    { sleep: 4, stress: 4, fatigue: 5, soreness: 5 },
+  ];
+  const wellness = wellnessPattern.map((w, i) => ({
+    id: uid(), athleteId, date: iso(addDays(new Date(), -9 + i)), ...w,
+  }));
+
   return {
     version: 1,
     unit: 'kg',
@@ -129,6 +145,7 @@ function seed() {
     entries,
     e1rmLog,
     meets,
+    wellness,
     drafts: {},
   };
 }
@@ -322,6 +339,20 @@ export function addMeet(meet) {
 
 export function deleteMeet(id) {
   commit((s) => { s.meets = (s.meets ?? []).filter((m) => m.id !== id); });
+}
+
+/** Záznamy pohody (Hooperův index) jednoho svěřence, chronologicky. */
+export const athleteWellness = (athleteId = state.activeAthlete) =>
+  (state.wellness ?? []).filter((w) => w.athleteId === athleteId).sort((x, y) => x.date.localeCompare(y.date));
+
+/** Jeden záznam na den a svěřence — druhý zápis týž den přepíše první. */
+export function setWellness(athleteId, date, values) {
+  commit((s) => {
+    (s.wellness ??= []);
+    const existing = s.wellness.find((w) => w.athleteId === athleteId && w.date === date);
+    if (existing) Object.assign(existing, values);
+    else s.wellness.push({ id: uid(), athleteId, date, ...values });
+  });
 }
 
 export const total = (a = athlete()) =>

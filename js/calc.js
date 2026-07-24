@@ -710,6 +710,51 @@ export function gradeMonotony(m) {
 }
 
 /* =========================================================
+   Hooperův index — kvantifikovaná pohoda
+   ========================================================= */
+
+/**
+ * Hooper a Mackinnon (1995): čtyři položky — spánek, stres, únava,
+ * bolestivost svalů — každá na škále 1 (velmi dobré/nízké) až 7 (velmi
+ * špatné/vysoké). Součet 4–28 předpověděl v jejich studii u plavců 76 %
+ * rozptylu fyziologických markerů přetrénování. Na rozdíl od RPE neřeší
+ * jen trénink — zachytí i to, co se do posilovny přineslo zvenku.
+ */
+export function hooperIndex(w) {
+  const vals = [w.sleep, w.stress, w.fatigue, w.soreness];
+  if (vals.some((v) => !(v >= 1 && v <= 7))) return null;
+  return vals.reduce((s, v) => s + v, 0);
+}
+
+/**
+ * Hooperův index se validoval jako individuální monitorovací nástroj, ne
+ * jako škála s pevnými prahy pro celou populaci — appka ho proto čte proti
+ * vlastnímu klouzavému průměru posledních záznamů, ne proti univerzálnímu
+ * číslu. days = kolik předchozích záznamů se bere do průměru.
+ */
+export function hooperBaseline(history, date, days = 7) {
+  const past = history
+    .filter((w) => w.date < date)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, days)
+    .map(hooperIndex)
+    .filter((v) => v != null);
+  if (!past.length) return null;
+  return round(past.reduce((s, v) => s + v, 0) / past.length, 1);
+}
+
+export function gradeHooper(today, baseline) {
+  if (today == null) return { label: 'Bez dat', tone: 'low' };
+  if (baseline == null) return { label: 'První záznam', tone: 'low' };
+  const diff = round(today - baseline, 1);
+  // ±2 body je appkou zvolený orientační práh, ne publikovaná hranice —
+  // Hooperův index nemá žádnou obecně platnou.
+  if (diff >= 2) return { label: 'Hůř než obvykle', tone: 'warn', diff };
+  if (diff <= -2) return { label: 'Lépe než obvykle', tone: 'ok', diff };
+  return { label: 'Podle obvyklého', tone: 'ok', diff };
+}
+
+/* =========================================================
    Tvrdé série
    ========================================================= */
 
@@ -987,4 +1032,35 @@ export function trend(points) {
     intercept: my - slope * mx,
     slope,
   };
+}
+
+/**
+ * Je ten sklon trendu reálný posun, nebo jen šum kolem nuly?
+ * Neporovnává se s vymyšlenou hranicí v kg za měsíc — bere se rozptyl
+ * bodů kolem proložené přímky (typický šum jednotlivých odhadů E1RM) a
+ * porovná se s tím, o kolik se přímka za celé sledované období posunula.
+ * Pohne-li se přímka míň, než je běžný rozptyl bodů kolem ní, není to
+ * prokazatelný trend — přesně ten samý princip jako u statistické
+ * významnosti signálu proti šumu, jen bez p-hodnoty. Potřebuje aspoň tři
+ * body — se dvěma padne přímka přesně na ně a šum vyjde nulový.
+ */
+export function plateauCheck(points) {
+  const t = trend(points);
+  if (!t || points.length < 3) return null;
+
+  const t0 = new Date(points[0].date).getTime();
+  const xs = points.map((p) => (new Date(p.date).getTime() - t0) / 86400000);
+  const ys = points.map((p) => p.value);
+  const residuals = xs.map((x, i) => ys[i] - (t.intercept + t.slope * x));
+  const residualSd = Math.sqrt(residuals.reduce((s, r) => s + r ** 2, 0) / (points.length - 2));
+  const span = xs.at(-1) - xs[0];
+  const totalMove = Math.abs(t.slope * span);
+
+  return { ...t, residualSd: round(residualSd, 1), totalMove: round(totalMove, 1), plateau: totalMove < residualSd };
+}
+
+export function gradePlateau(p) {
+  if (!p) return { label: 'Málo dat', tone: 'low' };
+  if (p.plateau) return { label: 'Beze změny', tone: 'warn' };
+  return { label: p.slope > 0 ? 'Roste' : 'Klesá', tone: p.slope > 0 ? 'ok' : 'bad' };
 }

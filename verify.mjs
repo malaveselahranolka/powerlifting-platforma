@@ -188,6 +188,46 @@ near('poměr real ÷ plán', wa.ratio, (17000 / 83.7) / (17000 / 81.1), 0.001);
 near('bez zapsaných dat pro cvik/týden vrací null', C.weeklyAdjustment(waEntries, 'bench', 1, '2026-01-05') === null ? 1 : 0, 1, 0);
 
 /* ---------------------------------------------------------------- */
+group('Hooperův index (Hooper a Mackinnon 1995)');
+near('součet 4 položek (1–7)', C.hooperIndex({ sleep: 2, stress: 3, fatigue: 4, soreness: 3 }), 12, 0);
+near('mimo rozsah 1–7 vrací null', C.hooperIndex({ sleep: 0, stress: 3, fatigue: 4, soreness: 3 }) === null ? 1 : 0, 1, 0);
+const hooperHistory = [
+  { date: '2026-02-01', sleep: 2, stress: 2, fatigue: 2, soreness: 2 }, // index 8
+  { date: '2026-02-02', sleep: 3, stress: 2, fatigue: 3, soreness: 2 }, // index 10
+  { date: '2026-02-03', sleep: 2, stress: 3, fatigue: 2, soreness: 3 }, // index 10
+];
+near('klouzavý průměr posledních záznamů (8,10,10 → 9,3)', C.hooperBaseline(hooperHistory, '2026-02-04'), (8 + 10 + 10) / 3, 0.05);
+near('dnešní záznam se do vlastního průměru nepočítá', C.hooperBaseline(hooperHistory, '2026-02-03'), (8 + 10) / 2, 0.01);
+near('o 3 body hůř než obvykle → varování', C.gradeHooper(13, 10).tone === 'warn' ? 1 : 0, 1, 0);
+near('o 3 body líp než obvykle → v pořádku', C.gradeHooper(7, 10).tone === 'ok' ? 1 : 0, 1, 0);
+
+/* ---------------------------------------------------------------- */
+group('Detekce plateau na E1RM (šum vs. reálný trend)');
+const flatPts = [
+  { date: '2026-01-01', value: 200 },
+  { date: '2026-01-11', value: 202 },
+  { date: '2026-01-21', value: 198 },
+  { date: '2026-01-31', value: 202 },
+  { date: '2026-02-10', value: 198 },
+];
+const flatCheck = C.plateauCheck(flatPts);
+near('šum kolem konstanty — reziduální rozptyl', flatCheck.residualSd, Math.sqrt(4.8), 0.01);
+near('šum kolem konstanty — celkový posun přímky', flatCheck.totalMove, 1.6, 0.01);
+near('šum kolem konstanty — appka to pozná jako plateau', flatCheck.plateau ? 1 : 0, 1, 0);
+
+const risingPts = [
+  { date: '2026-01-01', value: 200 },
+  { date: '2026-01-11', value: 206 },
+  { date: '2026-01-21', value: 212 },
+  { date: '2026-01-31', value: 218 },
+  { date: '2026-02-10', value: 224 },
+];
+const risingCheck = C.plateauCheck(risingPts);
+near('čistý lineární růst — nulový reziduální rozptyl', risingCheck.residualSd, 0, 0.01);
+near('čistý lineární růst — appka to nepozná jako plateau', risingCheck.plateau ? 0 : 1, 1, 0);
+near('méně než 3 body vrací null', C.plateauCheck([{ date: '2026-01-01', value: 100 }, { date: '2026-01-11', value: 105 }]) === null ? 1 : 0, 1, 0);
+
+/* ---------------------------------------------------------------- */
 group('Nakládání osy');
 const kg180 = C.loadBar(180, { bar: 20, collars: 5, unit: 'kg' });
 near('180 kg vyjde přesně', kg180.total, 180, 0.001);

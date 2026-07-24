@@ -242,6 +242,14 @@ export const ATTEMPT_JUMPS = {
   bench: [3, 5],
 };
 
+/* ---------- Hooperův dotazník pohody (Hooper a Mackinnon 1995) ---------- */
+export const WELLNESS_ITEMS = [
+  { key: 'sleep', label: 'Kvalita spánku', hint: '1 = výborná, 7 = velmi špatná' },
+  { key: 'stress', label: 'Stres', hint: '1 = žádný, 7 = extrémní' },
+  { key: 'fatigue', label: 'Únava', hint: '1 = žádná, 7 = extrémní' },
+  { key: 'soreness', label: 'Bolestivost svalů', hint: '1 = žádná, 7 = extrémní' },
+];
+
 /* ---------- Tvrdé série na soutěžní cvik a týden ----------
    Mezníky MEV/MAV/MRV jsou původně na svalovou skupinu, kam se sčítají
    i doplňky a varianty. Na jeden soutěžní cvik proto platí nižší čísla —
