@@ -62,7 +62,7 @@ function build(root, render, nav) {
               h('b', `Série ${r.set}`),
               { num: true, value: `${r.pct} %` },
               { num: true, value: h('b', W(r.weight, 1)) },
-              r.reps ? `${r.reps}` : h('span', { style: { color: 'var(--yellow)' } }, 'AMRAP — co nejvíc'),
+              r.reps ? `${r.reps}` : h('span', { style: { color: 'var(--warn)' } }, 'AMRAP — co nejvíc'),
             ],
           }))),
         h('p.note', { style: { marginTop: '10px' } },

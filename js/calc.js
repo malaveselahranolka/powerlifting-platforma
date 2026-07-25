@@ -1064,3 +1064,231 @@ export function gradePlateau(p) {
   if (p.plateau) return { label: 'Beze změny', tone: 'warn' };
   return { label: p.slope > 0 ? 'Roste' : 'Klesá', tone: p.slope > 0 ? 'ok' : 'bad' };
 }
+
+/* =========================================================
+   Kondice, únava a forma — dvousložkový model odezvy
+   ========================================================= */
+
+/**
+ * Banisterův model (Banister a kol. 1975, Calvert a kol. 1976): jedna
+ * tréninková dávka nastartuje dvě věci naráz — pomalu rostoucí a pomalu
+ * odeznívající *kondici* a rychle rostoucí, rychle odeznívající *únavu*.
+ * Co závodník předvede, je jejich rozdíl:
+ *
+ *   forma(t) = k1 · Σ zátěž(i) · e^(−(t−i)/τ1)  −  k2 · Σ zátěž(i) · e^(−(t−i)/τ2)
+ *
+ * Prakticky se to počítá rekurzivně, den po dni — každý den obě složky
+ * odezní o svůj podíl a přičte se dnešní zátěž:
+ *
+ *   kondice(t) = kondice(t−1) · e^(−1/τ1) + zátěž(t)
+ *   únava(t)   = únava(t−1)   · e^(−1/τ2) + zátěž(t)
+ *
+ * POZOR NA VÝKLAD. Konstanty τ1 = 42 a τ2 = 7 dní a poměr k2/k1 = 2 pocházejí
+ * z vytrvalostních sportů; pro silový trénink individuálně nastavené hodnoty
+ * publikované nejsou. Appka proto nikdy netvrdí „budeš mít 187,5 kg" — model
+ * kreslí *tvar* křivky: kdy únava odezní rychleji než kondice a otevře se okno
+ * formy. Číslo samo je v bezrozměrných jednotkách a má smysl jen proti
+ * vlastní historii závodníka, ne proti jinému člověku.
+ *
+ * loadsByDay: { 'YYYY-MM-DD': zátěž }. Vrací řadu den po dni.
+ */
+export function fitnessFatigue(loadsByDay, endDate, { tau1 = 42, tau2 = 7, k1 = 1, k2 = 2 } = {}) {
+  const days = Object.keys(loadsByDay).filter((d) => loadsByDay[d] > 0);
+  if (!days.length) return [];
+
+  const first = days.reduce((min, d) => (d < min ? d : min), days[0]);
+  const span = daysBetween(first, endDate);
+  if (span < 0) return [];
+
+  const d1 = Math.exp(-1 / tau1);
+  const d2 = Math.exp(-1 / tau2);
+
+  const out = [];
+  let fitness = 0;
+  let fatigue = 0;
+
+  for (let i = 0; i <= span; i++) {
+    const date = iso(addDaysLocal(first, i));
+    const load = loadsByDay[date] ?? 0;
+    fitness = fitness * d1 + load;
+    fatigue = fatigue * d2 + load;
+    out.push({
+      date,
+      load: round(load),
+      fitness: round(k1 * fitness, 1),
+      fatigue: round(k2 * fatigue, 1),
+      form: round(k1 * fitness - k2 * fatigue, 1),
+    });
+  }
+  return out;
+}
+
+/**
+ * Kde forma stojí v rámci vlastní historie. Absolutní hodnota nic neříká —
+ * záleží, jestli je dnešek nahoře nebo dole proti tomu, na co je závodník
+ * zvyklý. Percentil se počítá z posledních `window` dnů.
+ */
+export function formState(series, { window: win = 90 } = {}) {
+  if (!series.length) return null;
+  const recent = series.slice(-win);
+  const today = series.at(-1);
+  const sorted = recent.map((r) => r.form).sort((a, b) => a - b);
+  const below = sorted.filter((v) => v < today.form).length;
+  const pct = Math.round((below / Math.max(1, sorted.length - 1)) * 100);
+
+  // Trend za poslední týden řekne, jestli se forma zvedá, nebo padá.
+  const weekAgo = series.at(-8) ?? series[0];
+  return {
+    ...today,
+    percentile: pct,
+    delta7: round(today.form - weekAgo.form, 1),
+    ratio: today.fitness > 0 ? round(today.fatigue / today.fitness, 2) : null,
+    days: series.length,
+    reliable: series.length >= 42,   // kratší historie než τ1 kondici podhodnotí
+  };
+}
+
+export function gradeForm(state) {
+  if (!state) return { label: 'Málo dat', tone: 'low', note: 'Zapiš aspoň pár týdnů tréninku.' };
+  if (!state.reliable) {
+    return { label: 'Krátká historie', tone: 'low', note: 'Model potřebuje aspoň šest týdnů dat, jinak kondici podhodnotí — únava se načte hned, kondice se teprve staví.' };
+  }
+  if (state.percentile >= 80) return { label: 'Nahoře', tone: 'ok', note: 'Forma je vysoko proti vlastnímu obvyklému stavu. Tady se testuje maximum nebo závodí.' };
+  if (state.percentile >= 45) return { label: 'Obvyklý stav', tone: 'ok', note: 'Únava a kondice jsou v rovnováze, na kterou je závodník zvyklý. Tak vypadá běžný tréninkový týden.' };
+  if (state.percentile >= 20) return { label: 'Zahrabaný', tone: 'warn', note: 'Únava přerůstá kondici. V akumulaci to tak má být — před testem ne.' };
+  return { label: 'Hluboko', tone: 'bad', note: 'Forma je na dně vlastní historie. Buď je to naplánovaný nálož, nebo je čas na odlehčení.' };
+}
+
+/* =========================================================
+   Šum měření — kdy je změna skutečná
+   ========================================================= */
+
+/**
+ * Odhad maxima se ze dne na den houpe, i když se síla nezmění: jinak sedící
+ * pás, horší spánek, RPE odhadnuté o půl bodu vedle. Než se zlepšení začne
+ * slavit, musí být větší než tenhle šum.
+ *
+ * `typická chyba` (TE) se odhaduje jako směrodatná odchylka bodů kolem
+ * proložené přímky — přímka drží skutečný trend, rozptyl kolem ní je šum
+ * měření. Nejmenší prokazatelná změna (SDC, také MDC95) pak je:
+ *
+ *   SDC = 1,96 · √2 · TE ≈ 2,77 · TE
+ *
+ * 1,96 je 95% kvantil normálního rozdělení, √2 tam je proto, že rozdíl dvou
+ * měření nese chybu obou. (Hopkins 2000; Weir 2005 pro MDC95.) Menší posun
+ * než SDC appka odmítne prohlásit za zlepšení — může to být jen den.
+ */
+/**
+ * Spodní mez typické chyby, v procentech z průměru.
+ *
+ * Bez ní by pár zápisů, které náhodou padnou na přímku, dalo nulový rozptyl
+ * a appka by pak prohlásila za prokazatelné i zlepšení o 100 gramů. Žádné
+ * měření není přesnější než svoje vlastní opakovatelnost: samotný test 1RM
+ * se mezi dvěma dny liší řádově o jednotky procent a odhad ze submaximální
+ * série na RPE je ještě nejistější, protože k němu přibude chyba odhadu RPE.
+ *
+ * 2,5 % je hranice zvolená appkou na konzervativní straně publikovaného
+ * rozpětí opakovatelnosti testu 1RM (jednotky procent) — ne převzatá
+ * konstanta z konkrétní studie. Když z dat vyjde rozptyl větší, appka
+ * použije ten skutečný; menší než tohle neuzná.
+ */
+export const E1RM_NOISE_FLOOR_PCT = 2.5;
+
+export function measurementNoise(points) {
+  if (!points || points.length < 4) return null;
+  const t = trend(points);
+  if (!t) return null;
+
+  const t0 = new Date(points[0].date).getTime();
+  const xs = points.map((p) => (new Date(p.date).getTime() - t0) / 86400000);
+  const ys = points.map((p) => p.value);
+  const residuals = xs.map((x, i) => ys[i] - (t.intercept + t.slope * x));
+  const observed = Math.sqrt(residuals.reduce((s, r) => s + r ** 2, 0) / (points.length - 2));
+  const mean = ys.reduce((a, b) => a + b, 0) / ys.length;
+
+  const floor = (mean * E1RM_NOISE_FLOOR_PCT) / 100;
+  const te = Math.max(observed, floor);
+
+  return {
+    n: points.length,
+    typicalError: round(te, 1),
+    observedError: round(observed, 1),
+    floored: observed < floor,
+    cv: mean > 0 ? round((te / mean) * 100, 1) : null,
+    sdc: round(1.96 * Math.SQRT2 * te, 1),
+    latest: round(ys.at(-1), 1),
+    best: round(Math.max(...ys), 1),
+  };
+}
+
+/**
+ * Je rozdíl mezi dvěma odhady maxima prokazatelný, nebo se vejde do šumu?
+ * Vrací i samotné SDC, aby šlo v UI napsat „potřebuješ aspoň +5,2 kg".
+ */
+export function isRealChange(from, to, noise) {
+  if (!noise || from == null || to == null) return null;
+  const diff = round(to - from, 1);
+  return {
+    diff,
+    sdc: noise.sdc,
+    real: Math.abs(diff) >= noise.sdc,
+    direction: diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat',
+  };
+}
+
+/* =========================================================
+   Poměry mezi cviky — kde je slabé místo
+   ========================================================= */
+
+/**
+ * Pásma vycházejí z rozborů veřejné databáze OpenPowerlifting nad klasickým
+ * (raw) trojbojem: benčpres se u drtivé většiny závodníků drží kolem dvou
+ * třetin dřepu a mrtvý tah bývá o desetinu až čtvrtinu nad dřepem.
+ *
+ * Není to předpis — páka, délka končetin a stavba těla poměr posunou
+ * legitimně a natrvalo. Slouží k jedinému: upozornit, že jeden cvik
+ * zaostává za zbytkem *u tohohle člověka*, a nabídnout to jako otázku,
+ * ne jako diagnózu.
+ */
+export const LIFT_RATIOS = [
+  { key: 'benchSquat', of: 'bench', per: 'squat', low: 0.60, high: 0.80, label: 'Benčpres ku dřepu' },
+  { key: 'deadliftSquat', of: 'deadlift', per: 'squat', low: 1.05, high: 1.35, label: 'Mrtvý tah ku dřepu' },
+  { key: 'benchDeadlift', of: 'bench', per: 'deadlift', low: 0.48, high: 0.68, label: 'Benčpres ku mrtvému tahu' },
+];
+
+export function liftBalance(e1rm) {
+  const out = [];
+  for (const r of LIFT_RATIOS) {
+    const a = e1rm[r.of];
+    const b = e1rm[r.per];
+    if (!(a > 0) || !(b > 0)) continue;
+    const ratio = a / b;
+    const mid = (r.low + r.high) / 2;
+    out.push({
+      ...r,
+      ratio: round(ratio, 3),
+      pct: round(ratio * 100, 1),
+      state: ratio < r.low ? 'low' : ratio > r.high ? 'high' : 'ok',
+      // o kolik kg by cvik musel povyrůst, aby se dostal do pásma
+      toBand: ratio < r.low ? round(b * r.low - a, 1) : ratio > r.high ? round(b * r.high - a, 1) : 0,
+      toMid: round(b * mid - a, 1),
+    });
+  }
+  return out;
+}
+
+/**
+ * Rozpad součtu na tři cviky v procentech. U klasického trojboje se
+ * podíly drží zhruba na 34 / 25 / 41 % — je to jiný pohled na tu samou věc
+ * jako poměry výš, ale čte se rychleji.
+ */
+export function totalSplit(e1rm) {
+  const total = ['squat', 'bench', 'deadlift'].reduce((s, k) => s + (e1rm[k] ?? 0), 0);
+  if (!(total > 0)) return null;
+  return {
+    total: round(total, 1),
+    squat: round(((e1rm.squat ?? 0) / total) * 100, 1),
+    bench: round(((e1rm.bench ?? 0) / total) * 100, 1),
+    deadlift: round(((e1rm.deadlift ?? 0) / total) * 100, 1),
+  };
+}

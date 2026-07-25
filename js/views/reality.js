@@ -88,7 +88,7 @@ function build(root, render, nav) {
               cells: [
                 h('b', `Týden ${w.week}`),
                 { num: true, value: w.n },
-                { num: true, value: h('b', { style: { color: w.avg >= 0.3 ? 'var(--yellow)' : w.avg <= -0.4 ? 'var(--blue)' : 'var(--chalk)' } }, `${w.avg >= 0 ? '+' : '−'}${fixed(Math.abs(w.avg), 2)}`) },
+                { num: true, value: h('b', { style: { color: w.avg >= 0.3 ? 'var(--warn)' : w.avg <= -0.4 ? 'var(--info)' : 'var(--ink)' } }, `${w.avg >= 0 ? '+' : '−'}${fixed(Math.abs(w.avg), 2)}`) },
                 { num: true, value: w.harder },
                 { num: true, value: w.easier },
                 tag(g.label, g.tone),
@@ -126,14 +126,14 @@ function build(root, render, nav) {
     // z jednoho dne bere jen nejlepší sérii — jinak by graf skákal podle back-offů
     const best = new Map();
     for (const p of pts) best.set(p.date, Math.max(best.get(p.date) ?? 0, p.value));
-    return { color: LIFTS[k].color, lift: k, points: [...best.entries()].map(([date, value]) => ({ date, value: S.toDisplay(value) })) };
+    return { color: LIFTS[k].color, label: LIFTS[k].label, lift: k, points: [...best.entries()].map(([date, value]) => ({ date, value: S.toDisplay(value) })) };
   }).filter((s) => s.points.length > 1);
 
   if (series.length) {
     root.append(card('Odhad maxima ze skutečných sérií', {
       eyebrow: `Nejlepší série každého dne · ${U()}`,
     },
-      lineChart(series, { height: 210, fmt: (v) => num(v, 0) }),
+      lineChart(series, { height: 210, fmt: (v) => num(v, 0), unit: U() }),
       h('div.split-legend',
         ...series.map((s) => h('div.split-item',
           h('i', { style: { background: s.color } }),
@@ -259,7 +259,7 @@ function realRow(e, render) {
 
     const d = C.round(e.actualRpe - e.rpe, 1);
     deltaCell.append(h('b', {
-      style: { color: d > 0 ? 'var(--yellow)' : d < 0 ? 'var(--blue)' : 'var(--green)' },
+      style: { color: d > 0 ? 'var(--warn)' : d < 0 ? 'var(--info)' : 'var(--ok)' },
     }, d === 0 ? 'přesně' : `${d > 0 ? '+' : '−'}${fixed(Math.abs(d), 1)}`));
 
     const v = C.setE1rm(e);

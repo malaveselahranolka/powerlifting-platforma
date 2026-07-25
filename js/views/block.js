@@ -160,8 +160,9 @@ function build(root, render, nav) {
     const zone = C.prilepinZone(avgInt);
     cells.push({
       week: d.week, day: d.day,
-      color: avgInt ? zone.color : 'var(--steel)',
-      weight: 0.28 + 0.72 * ((d.ton - minTon) / spanTon),
+      color: avgInt ? zone.color : 'var(--surface-2)',
+      ink: avgInt ? `var(--${zone.key.replace('z', 'zone-')}-ink)` : 'var(--ink-3)',
+      weight: (d.ton - minTon) / spanTon,
       label: avgInt ? `${Math.round(avgInt)} %` : '—',
       title: avgInt
         ? `Týden ${d.week}, ${d.day} — tonáž ${bigNum(S.toDisplay(d.ton))} ${U()}, průměrná intenzita ${num(avgInt, 1)} % (${zone.label})`
@@ -170,7 +171,7 @@ function build(root, render, nav) {
   }
 
   root.append(card('Mapa bloku', {
-    eyebrow: 'Barva = intenzitní zóna · sytost = objem dne',
+    eyebrow: 'Výplň = intenzitní zóna · proužek u spodní hrany = objem dne',
     class: 'is-flush',
     action: h('div.zone-legend', ...PRILEPIN.map((z) => h('div.zone-item', h('i', { style: { background: z.color } }), z.label))),
   },
@@ -184,7 +185,7 @@ function build(root, render, nav) {
         stackedBars(
           an.weeks.map((w) => ({ label: `T${w.week}`, values: w.lifts })),
           [...COMP_LIFTS, 'accessory'].map((k) => ({ key: k, label: LIFTS[k].label, color: LIFTS[k].color })),
-          { fmt: (v) => bigNum(S.toDisplay(v)) }))),
+          { fmt: (v) => bigNum(S.toDisplay(v)), unit: U() }))),
 
     card('Rozpad podle cviku', { eyebrow: 'Kam jde objem' },
       splitBar(an.lifts.map((l) => ({
@@ -221,7 +222,7 @@ function build(root, render, nav) {
               {
                 num: true,
                 value: w.nlMain
-                  ? h('b', { style: { color: w.peakIntensity >= 90 ? 'var(--red-lit)' : w.peakIntensity >= 85 ? 'var(--yellow)' : 'var(--chalk)' } }, `${fixed(w.peakIntensity, 0)} %`)
+                  ? h('b', { style: { color: w.peakIntensity >= 90 ? 'var(--bad)' : w.peakIntensity >= 85 ? 'var(--warn)' : 'var(--ink)' } }, `${fixed(w.peakIntensity, 0)} %`)
                   : '—',
               },
               h('span', { title: g.note }, tag(g.label, g.tone)),

@@ -132,6 +132,15 @@ const PATHS = {
   scale: ['m3 7 3 9h6l3-9', 'M12 3v18', 'M5 21h14', 'm15 7 3 9h3l-3-9'],
   copy: ['M9 9h11a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V9z', 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'],
   trending: ['M22 7 13.5 15.5 8.5 10.5 2 17', 'M16 7h6v6'],
+  search: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'm21 21-4.35-4.35'],
+  sun: ['M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z', 'M12 1v2', 'M12 21v2', 'M4.22 4.22l1.42 1.42', 'M18.36 18.36l1.42 1.42', 'M1 12h2', 'M21 12h2', 'M4.22 19.78l1.42-1.42', 'M18.36 5.64l1.42-1.42'],
+  moon: ['M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'],
+  shield: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
+  printer: ['M6 9V2h12v7', 'M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2', 'M6 14h12v8H6z'],
+  activity: ['M22 12h-4l-3 9L9 3l-3 9H2'],
+  heart: ['M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'],
+  info: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M12 16v-4', 'M12 8h.01'],
+  gauge2: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M12 12l4-4'],
 };
 
 export function icon(name, size = 18) {
@@ -273,6 +282,130 @@ export function toast(msg, tone = 'ok') {
   el.classList.add('is-on');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('is-on'), 2600);
+}
+
+/* ---------------- motiv ---------------- */
+
+const THEME_KEY = 'pwr.theme';
+
+/** 'light' | 'dark' — buď vlastní volba, nebo to, co říká systém. */
+export function readTheme() {
+  const stored = document.documentElement.dataset.theme;
+  if (stored === 'light' || stored === 'dark') return stored;
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+export function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem(THEME_KEY, theme); } catch { /* zakázané úložiště */ }
+  const meta = document.querySelector('meta[name="theme-color"]:not([media])');
+  if (meta) meta.content = theme === 'dark' ? '#0d0e10' : '#f4f5f6';
+}
+
+/**
+ * Nasadí uložený motiv. Inline skript v index.html to udělá dřív, aby
+ * stránka neproblikla — tohle jen dorovná stav po startu modulu a udrží
+ * appku v souladu, když si uživatel přepne motiv v systému.
+ */
+export function applyTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === 'light' || stored === 'dark') document.documentElement.dataset.theme = stored;
+  } catch { /* zakázané úložiště */ }
+}
+
+/* ---------------- paleta příkazů ---------------- */
+
+let paletteOpen = false;
+
+/**
+ * ⌘K / Ctrl+K. Skupiny jsou [{ group, items: [{ label, hint, ic, keywords, run }] }].
+ *
+ * Klávesnice je tady rovnocenná myši: šipky, Enter, Esc. Filtruje se přes
+ * `keywords`, takže „tonáž" najde Analýzu bloku, i když to slovo není
+ * v názvu obrazovky.
+ */
+export function cmdPalette(groups) {
+  if (paletteOpen) return;
+  paletteOpen = true;
+
+  const restore = document.activeElement;
+  const input = h('input', { type: 'text', placeholder: 'Hledej obrazovku, svěřence nebo akci…', 'aria-label': 'Hledat', autocomplete: 'off' });
+  const list = h('div.cmdk-list', { role: 'listbox' });
+  const panel = h('div.cmdk', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Paleta příkazů' },
+    h('div.cmdk-search', icon('search', 16), input),
+    list,
+    h('div.cmdk-foot',
+      h('span', h('span.kbd', '↑↓'), 'pohyb'),
+      h('span', h('span.kbd', '↵'), 'otevřít'),
+      h('span', h('span.kbd', 'esc'), 'zavřít')));
+
+  const scrim = h('div.cmdk-scrim', {
+    onpointerdown: (e) => { if (e.target === scrim) close(); },
+  }, panel);
+
+  let matches = [];
+  let cursor = 0;
+
+  const close = () => {
+    paletteOpen = false;
+    scrim.remove();
+    document.removeEventListener('keydown', onKey, true);
+    restore?.focus?.();
+  };
+
+  const runAt = (i) => {
+    const m = matches[i];
+    if (!m) return;
+    close();
+    m.run();
+  };
+
+  const draw = () => {
+    const q = input.value.trim().toLowerCase();
+    matches = [];
+    clear(list);
+
+    for (const g of groups) {
+      const hits = g.items.filter((it) =>
+        !q || `${it.label} ${it.keywords ?? ''}`.toLowerCase().includes(q));
+      if (!hits.length) continue;
+      list.append(h('div.cmdk-group', g.group));
+      for (const it of hits) {
+        const idx = matches.length;
+        matches.push(it);
+        list.append(h('button.cmdk-item', {
+          type: 'button', role: 'option',
+          dataset: { on: String(idx === cursor) },
+          onpointerenter: () => { cursor = idx; mark(); },
+          onclick: () => runAt(idx),
+        }, icon(it.ic ?? 'arrow', 16), h('span', it.label), it.hint && h('span.cmdk-hint', it.hint)));
+      }
+    }
+
+    if (!matches.length) list.append(h('div.cmdk-empty', 'Nic takového tu není.'));
+    cursor = Math.min(cursor, Math.max(0, matches.length - 1));
+    mark();
+  };
+
+  const mark = () => {
+    const items = [...list.querySelectorAll('.cmdk-item')];
+    items.forEach((el, i) => { el.dataset.on = String(i === cursor); });
+    items[cursor]?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); cursor = (cursor + 1) % Math.max(1, matches.length); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cursor = (cursor - 1 + matches.length) % Math.max(1, matches.length); mark(); }
+    else if (e.key === 'Enter') { e.preventDefault(); runAt(cursor); }
+  };
+
+  input.addEventListener('input', () => { cursor = 0; draw(); });
+  document.addEventListener('keydown', onKey, true);
+  document.body.append(scrim);
+  draw();
+  input.focus();
 }
 
 export function download(filename, text, type = 'text/csv;charset=utf-8') {

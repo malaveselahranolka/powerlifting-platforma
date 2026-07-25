@@ -1,7 +1,7 @@
-import { h, s, icon, clear, num, segmented, select } from './ui.js';
+import { h, s, icon, clear, segmented, select, cmdPalette, applyTheme, readTheme, setTheme } from './ui.js';
 import * as S from './store.js';
-import * as C from './calc.js';
-import { initials, W, U } from './views/_util.js';
+
+import { initials } from './views/_util.js';
 
 import { dashboard } from './views/dashboard.js';
 import { e1rmView } from './views/e1rm.js';
@@ -16,6 +16,7 @@ import { athletesView } from './views/athletes.js';
 import { glossaryView } from './views/glossary.js';
 import { realityView } from './views/reality.js';
 import { macroView } from './views/macro.js';
+import { readinessView } from './views/readiness.js';
 import * as cloud from './cloud.js';
 
 const ROUTES = [
@@ -27,6 +28,7 @@ const ROUTES = [
   { id: 'apre', label: 'APRE', ic: 'zap', title: 'APRE', sub: 'Autoregulace podle skutečných opakování, ne podle pocitu.', view: apreView },
   { group: 'Trénink' },
   { id: 'realita', label: 'Plán vs. realita', ic: 'target', title: 'Plán vs. realita', sub: 'Jak trénink dopadl proti tomu, jak byl napsaný.', view: realityView },
+  { id: 'forma', label: 'Únava a forma', ic: 'activity', title: 'Únava a forma', sub: 'Model kondice a únavy, objemové mezníky a signál proti šumu.', view: readinessView },
   { id: 'block', label: 'Analýza bloku', ic: 'layers', title: 'Analýza bloku', sub: 'Objem, intenzita a charakter jednotlivých týdnů.', view: blockView },
   { id: 'program', label: 'Stavba bloku', ic: 'calendar', title: 'Stavba bloku', sub: 'Vlny, procenta a hotový plán na týdny dopředu.', view: programView },
   { id: 'makro', label: 'Makrocyklus', ic: 'trending', title: 'Makrocyklus', sub: 'Bloky v čase, odlehčení a zápasy — sezóna jako celek.', view: macroView },
@@ -59,11 +61,11 @@ window.addEventListener('hashchange', () => {
    Značka
    ========================================================= */
 function brandMark() {
-  return s('svg', { viewBox: '0 0 32 32', width: 32, height: 32, class: 'brand-mark', 'aria-hidden': 'true' },
-    s('rect', { x: 0, y: 6, width: 32, height: 20, rx: 4, fill: 'var(--red)' }),
-    s('rect', { x: 0, y: 6, width: 32, height: 8, rx: 4, fill: '#fff', opacity: .16 }),
-    s('rect', { x: 13.5, y: 0, width: 5, height: 32, rx: 2, fill: 'var(--bg-deep)' }),
-    s('rect', { x: 14.75, y: 3, width: 2.5, height: 26, rx: 1.25, fill: 'var(--steel)' }));
+  return s('svg', { viewBox: '0 0 32 32', width: 26, height: 26, class: 'brand-mark', 'aria-hidden': 'true' },
+    s('rect', { x: 0, y: 0, width: 32, height: 32, rx: 7, fill: 'var(--accent)' }),
+    s('rect', { x: 3, y: 13, width: 26, height: 6, rx: 3, fill: '#fff' }),
+    s('rect', { x: 6, y: 9, width: 4, height: 14, rx: 2, fill: '#fff' }),
+    s('rect', { x: 22, y: 9, width: 4, height: 14, rx: 2, fill: '#fff' }));
 }
 
 /* =========================================================
@@ -74,9 +76,10 @@ function rail() {
     if (r.group) return h('div.nav-group', r.group);
     return h('button.nav-item', {
       type: 'button',
+      title: r.label,
       'aria-current': r.id === current ? 'page' : null,
       onclick: () => nav(r.id),
-    }, icon(r.ic, 18), h('span', r.label));
+    }, icon(r.ic, 17), h('span', r.label));
   });
 
   return h('aside.rail',
@@ -87,13 +90,27 @@ function rail() {
         h('div.brand-sub', 'trenérský nástroj'))),
     h('nav.nav', { 'aria-label': 'Hlavní navigace' }, ...nodes),
     h('div.rail-foot',
-      h('span', 'Data jen v prohlížeči'),
-      icon('book', 15)));
+      h('button.nav-item', {
+        type: 'button', title: 'Hledat a přepínat (Ctrl+K)',
+        onclick: () => openPalette(),
+      }, icon('search', 17), h('span', 'Hledat'), h('span.kbd', { style: { marginLeft: 'auto' } }, '⌘K')),
+      h('div.rail-note', icon('shield', 14), h('span', 'Data jen v prohlížeči'))));
 }
 
 /* =========================================================
    Horní lišta
    ========================================================= */
+function themeToggle() {
+  const t = readTheme();
+  const next = t === 'dark' ? 'light' : 'dark';
+  return h('button.btn.btn-icon.btn-ghost', {
+    type: 'button',
+    title: next === 'dark' ? 'Přepnout na tmavý motiv' : 'Přepnout na světlý motiv',
+    'aria-label': 'Přepnout motiv',
+    onclick: () => { setTheme(next); render(); },
+  }, icon(t === 'dark' ? 'sun' : 'moon', 17));
+}
+
 function topbar(page) {
   const a = S.athlete();
   return h('header.topbar',
@@ -111,8 +128,54 @@ function topbar(page) {
       segmented([{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }], S.state.unit, (v) => {
         S.commit((st) => { st.unit = v; });
         render();
-      })));
+      }),
+      themeToggle()));
 }
+
+/* =========================================================
+   Paleta příkazů — ⌘K / Ctrl+K
+   ========================================================= */
+function openPalette() {
+  cmdPalette([
+    {
+      group: 'Obrazovky',
+      items: PAGES.map((p) => ({
+        label: p.title, hint: p.label, ic: p.ic, keywords: `${p.label} ${p.sub}`,
+        run: () => nav(p.id),
+      })),
+    },
+    {
+      group: 'Svěřenci',
+      items: S.state.athletes.map((x) => ({
+        label: x.name, hint: 'přepnout', ic: 'users', keywords: x.name,
+        run: () => { S.selectAthlete(x.id); render(); },
+      })),
+    },
+    {
+      group: 'Nastavení',
+      items: [
+        {
+          label: readTheme() === 'dark' ? 'Přepnout na světlý motiv' : 'Přepnout na tmavý motiv',
+          ic: readTheme() === 'dark' ? 'sun' : 'moon', keywords: 'motiv téma tmavý světlý theme',
+          run: () => { setTheme(readTheme() === 'dark' ? 'light' : 'dark'); render(); },
+        },
+        {
+          label: S.state.unit === 'kg' ? 'Přepnout na libry' : 'Přepnout na kilogramy',
+          ic: 'scale', keywords: 'jednotky kg lb libry kilogramy',
+          run: () => { S.commit((st) => { st.unit = st.unit === 'kg' ? 'lb' : 'kg'; }); render(); },
+        },
+        { label: 'Vytisknout obrazovku', ic: 'printer', keywords: 'tisk print pdf papír', run: () => window.print() },
+      ],
+    },
+  ]);
+}
+
+window.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openPalette();
+  }
+});
 
 /* =========================================================
    Vykreslení
@@ -121,10 +184,11 @@ function render() {
   const page = PAGES.find((p) => p.id === current) ?? PAGES[0];
   clear(app);
   app.append(
+    h('a.skip-link', { href: '#obsah' }, 'Přeskočit na obsah'),
     rail(),
     h('div', { style: { minWidth: 0 } },
       topbar(page),
-      h('main.main', page.view(nav))));
+      h('main.main', { id: 'obsah', tabindex: '-1' }, page.view(nav))));
   document.title = `${page.title} — Platforma`;
   window.scrollTo({ top: 0 });
 }
@@ -132,6 +196,7 @@ function render() {
 /* Start: pokud je zapnutá cloudová synchronizace a v cloudu je novější verze,
    stáhne ji a znovu načte stránku. Jinak rovnou vykreslí. */
 async function boot() {
+  applyTheme();
   if (cloud.enabled()) {
     try {
       const { pulled } = await cloud.bootstrap(S.STORAGE_KEY);

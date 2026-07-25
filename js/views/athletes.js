@@ -103,7 +103,7 @@ function build(root, render, nav) {
 
     card('Tělesná váha', { eyebrow: 'Vývoj', action: h('button.btn.btn-sm', { onclick: () => logBw(a, render) }, icon('plus', 14), 'Zápis') },
       (a.bwLog ?? []).length > 1
-        ? lineChart([{ color: 'var(--yellow)', points: a.bwLog.map((p) => ({ date: p.date, value: S.toDisplay(p.value) })) }], { height: 170, fmt: (v) => num(v, 1) })
+        ? lineChart([{ color: 'var(--series-1)', label: 'Tělesná váha', points: a.bwLog.map((p) => ({ date: p.date, value: S.toDisplay(p.value) })) }], { height: 170, fmt: (v) => num(v, 1), unit: U() })
         : h('div.chart-empty', 'Zapiš aspoň dvě vážení.'),
       (() => {
         const wc = C.weightClass(a.bw, a.sex);
@@ -174,7 +174,7 @@ function cloudCard(render) {
   if (cloud.enabled()) return cloudEnabledCard(render);
 
   const draft = { url: '', key: '' };
-  const err = h('span.field-hint', { style: { color: 'var(--red-lit)' } });
+  const err = h('span.field-hint', { style: { color: 'var(--bad)' } });
   const btn = h('button.btn.btn-primary', {}, icon('check', 16), 'Otestovat a zapnout');
 
   const enable = async () => {
@@ -289,7 +289,7 @@ function newAthleteForm(render) {
     style: { fontFamily: 'var(--font-body)' },
     oninput: (e) => { draft.name = e.target.value; error.textContent = ''; },
   });
-  const error = h('span.field-hint', { style: { color: 'var(--red-lit)' } });
+  const error = h('span.field-hint', { style: { color: 'var(--bad)' } });
 
   const save = () => {
     const name = draft.name.trim();

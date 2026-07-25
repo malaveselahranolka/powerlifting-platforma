@@ -54,12 +54,17 @@ export const PLATES_LB = [
 export const DEFAULT_INVENTORY_KG = { 25: 8, 20: 2, 15: 1, 10: 1, 5: 1, 2.5: 1, 1.25: 1, 0.5: 1, 0.25: 1 };
 export const DEFAULT_INVENTORY_LB = { 45: 8, 25: 1, 10: 1, 5: 1, 2.5: 1, 1.25: 1 };
 
-/* ---------- Prilepinova tabulka ---------- */
+/* ---------- Prilepinova tabulka ----------
+   Zóny jsou uspořádané, ne rovnocenné kategorie: < 70 % je míň než ≥ 90 %.
+   Proto jeden odstín ve čtyřech krocích (světlý → tmavý), ne čtyři různé
+   barvy. Duha na uspořádaná data nutí čtenáře luštit legendu; jeden odstín
+   se čte rovnou. Kotoučové barvy zůstaly tam, kde znamenají kotouč —
+   na vykreslené ose a ve skladu.                                        */
 export const PRILEPIN = [
-  { key: 'z1', label: '< 70 %', min: 0, max: 69.999, reps: '3–6', optimal: 24, range: [18, 30], color: '#178F5C' },
-  { key: 'z2', label: '70–79 %', min: 70, max: 79.999, reps: '3–6', optimal: 18, range: [12, 24], color: '#E8B00A' },
-  { key: 'z3', label: '80–89 %', min: 80, max: 89.999, reps: '2–4', optimal: 15, range: [10, 20], color: '#1C61B8' },
-  { key: 'z4', label: '≥ 90 %', min: 90, max: 999, reps: '1–2', optimal: 7, range: [4, 10], color: '#D8232F' },
+  { key: 'z1', label: '< 70 %', min: 0, max: 69.999, reps: '3–6', optimal: 24, range: [18, 30], color: 'var(--zone-1)' },
+  { key: 'z2', label: '70–79 %', min: 70, max: 79.999, reps: '3–6', optimal: 18, range: [12, 24], color: 'var(--zone-2)' },
+  { key: 'z3', label: '80–89 %', min: 80, max: 89.999, reps: '2–4', optimal: 15, range: [10, 20], color: 'var(--zone-3)' },
+  { key: 'z4', label: '≥ 90 %', min: 90, max: 999, reps: '1–2', optimal: 7, range: [4, 10], color: 'var(--zone-4)' },
 ];
 
 /* ---------- INOL pásma ---------- */
@@ -108,12 +113,16 @@ export const WEIGHT_CLASSES = {
   f: [43, 47, 52, 57, 63, 69, 76, 84, Infinity],
 };
 
-/* ---------- Cviky ---------- */
+/* ---------- Cviky ----------
+   Tři soutěžní cviky jsou kategorie — dostanou tři odstíny ověřené na
+   odlišitelnost i při barvosleposti (validátor: nejhorší pár ΔE 9,2 světlý
+   / 9,4 tmavý motiv). Doplňky nejsou čtvrtá rovnocenná kategorie, ale
+   „zbytek", takže jdou do neutrální šedé a nesoutěží o pozornost.       */
 export const LIFTS = {
-  squat: { label: 'Dřep', short: 'DŘ', comp: true, color: '#D8232F' },
-  bench: { label: 'Benčpres', short: 'BP', comp: true, color: '#1C61B8' },
-  deadlift: { label: 'Mrtvý tah', short: 'MT', comp: true, color: '#E8B00A' },
-  accessory: { label: 'Doplňkový cvik', short: 'DOP', comp: false, color: '#178F5C' },
+  squat: { label: 'Dřep', short: 'DŘ', comp: true, color: 'var(--series-1)' },
+  bench: { label: 'Benčpres', short: 'BP', comp: true, color: 'var(--series-2)' },
+  deadlift: { label: 'Mrtvý tah', short: 'MT', comp: true, color: 'var(--series-3)' },
+  accessory: { label: 'Doplňkový cvik', short: 'DOP', comp: false, color: 'var(--series-other)' },
 };
 
 export const COMP_LIFTS = ['squat', 'bench', 'deadlift'];
@@ -122,12 +131,12 @@ export const COMP_LIFTS = ['squat', 'bench', 'deadlift'];
    Blokovou periodizaci (Issurin) tvoří tři fáze, které se v makrocyklu
    opakují: akumulace (objem, work capacity) → transmutace (objem dolů,
    intenzita nahoru) → realizace (vrcholení, nejvyšší intenzita, nejnižší
-   objem). Barvy navazují na Prilepinovu paletu — zelená je nízkoprahová
-   práce, červená nejvyšší intenzita.                                    */
+   objem). Fáze jdou po sobě, takže berou stejnou pořadovou škálu jako
+   intenzitní zóny — od nejsvětlejšího kroku k nejtmavšímu.              */
 export const BLOCK_PHASES = {
-  akumulace: { label: 'Akumulace', color: '#178F5C' },
-  transmutace: { label: 'Transmutace', color: '#E8B00A' },
-  realizace: { label: 'Realizace', color: '#D8232F' },
+  akumulace: { label: 'Akumulace', color: 'var(--zone-1)' },
+  transmutace: { label: 'Transmutace', color: 'var(--zone-3)' },
+  realizace: { label: 'Realizace', color: 'var(--zone-4)' },
 };
 
 /* ---------- Šablony bloků ---------- */

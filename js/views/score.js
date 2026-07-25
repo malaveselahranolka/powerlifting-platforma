@@ -69,16 +69,16 @@ function build(root, render) {
     eyebrow: `Stejný součet ${Wu(total)}, jiná tělesná váha`,
   },
     lineChart([
-      { color: 'var(--red)', points: rel((x) => C.ipfGL(total, x, sex, equipment), gl), dots: false },
-      { color: 'var(--blue)', points: rel((x) => C.dots(total, x, sex), d), area: false, dots: false },
+      { color: 'var(--series-1)', label: 'IPF GL', points: rel((x) => C.ipfGL(total, x, sex, equipment), gl), area: false },
+      { color: 'var(--series-2)', label: 'DOTS', points: rel((x) => C.dots(total, x, sex), d), area: false },
     ], {
       height: 200,
       fmt: (v) => `${v >= 0 ? '+' : ''}${fixed(v, 1)} %`,
       xFmt: (v) => `${fixed(v, 0)} ${U()}`,
     }),
     h('div.split-legend',
-      h('div.split-item', h('i', { style: { background: 'var(--red)' } }), h('span.split-name', 'IPF GL')),
-      h('div.split-item', h('i', { style: { background: 'var(--blue)' } }), h('span.split-name', 'DOTS')),
+      h('div.split-item', h('i', { style: { background: 'var(--series-1)' } }), h('span.split-name', 'IPF GL')),
+      h('div.split-item', h('i', { style: { background: 'var(--series-2)' } }), h('span.split-name', 'DOTS')),
       h('span.faint', { style: { fontSize: '12px' } }, `Nula = dnešních ${Wu(bw, 1)}`)),
     table(
       [`Tělesná váha (${U()})`, { label: 'IPF GL', num: true }, { label: 'DOTS', num: true }, { label: 'Wilks', num: true }],
@@ -110,7 +110,7 @@ function build(root, render) {
               cells: [
                 h('b', String(targetGl)),
                 { num: true, value: fixed(S.toDisplay(need), 1) },
-                { num: true, value: h('span', { style: { color: need > total ? 'var(--yellow)' : 'var(--green)' } }, `${need > total ? '+' : '−'}${fixed(Math.abs(S.toDisplay(need - total)), 1)}`) },
+                { num: true, value: h('span', { style: { color: need > total ? 'var(--warn)' : 'var(--ok)' } }, `${need > total ? '+' : '−'}${fixed(Math.abs(S.toDisplay(need - total)), 1)}`) },
                 { num: true, value: fixed(C.dots(need, bw, sex), 1) },
               ],
             };
