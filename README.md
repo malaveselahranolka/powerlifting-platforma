@@ -28,12 +28,15 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 118 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 190 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
 expozice, výsledky ze zápasu, doporučená úprava příštího týdne, Hooperův index,
-detekce plateau na E1RM, nakládání osy v kilech i librách a váhové kategorie.
+detekce plateau na E1RM, nakládání osy v kilech i librách, váhové kategorie,
+dvousložkový model kondice a únavy (proti analyticky spočítané sumě exponenciál),
+typická chyba a nejmenší prokazatelná změna, podíly cviků na součtu, věkové
+koeficienty, denní připravenost a signál stropu regenerace.
 
 ## Co to umí
 
@@ -45,13 +48,14 @@ detekce plateau na E1RM, nakládání osy v kilech i librách a váhové kategor
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
 | **Plán vs. realita** | Posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučení podle skutečného výkonu, přímá editace váhy v tabulce týdne |
+| **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, rozložení součtu proti elitě |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík s časováním, projekce součtu |
-| **Skóre** | IPF GL, DOTS, Wilks a vliv tělesné váhy na koeficient |
+| **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, vliv tělesné váhy na koeficient |
 | **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 33 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Vysvětlivky** | 39 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 
@@ -74,6 +78,12 @@ detekce plateau na E1RM, nakládání osy v kilech i librách a váhové kategor
 | APRE | ramp k AMRAP sérii, úprava −10 až +10 % podle opakování | Mann a kol. (2010) |
 | Doporučená úprava | poměr skutečného a plánovaného E1RM z odvedených sérií | odvozeno z RPE tabulky, appka bez vlastních koeficientů |
 | Detekce plateau | posun přímky trendu vs. rozptyl bodů kolem ní | obecný statistický princip, appka bez publikovaného vzorce |
+| Kondice a únava | kondice(t) = kondice(t−1)·e^(−1/τ1) + zátěž, τ1 = 42 dnů; únava totéž s τ2 = 7 dnů; forma = k1·kondice − k2·únava | Banister a kol. (1975), Calvert a kol. (1976) — konstanty z vytrvalostních sportů, viz níž |
+| Typická chyba a SDC | TE = rozptyl kolem přímky trendu; SDC = 1,96 · √2 · TE | Hopkins (2000, 2004), Weir (2005) |
+| Denní připravenost | odchylka RPE od očekávaného, vážená INOL, z-skóre proti 28 dnům | konstrukce nad Helms a kol. (2017) a Zourdos a kol. (2016) |
+| Strop regenerace | dvě ze tří známek: výkon vs. objem, posun RPE ≥ 0,5, Hooper o 15 % horší | kombinace appky nad Israetel a kol. (2015); dávka a odezva Pelland, Schoenfeld a kol. (2025) |
+| Rozložení součtu | podíl cviku na součtu proti pásmu elity podle kategorie, pohlaví a výstroje | Hernández Ugalde (2023), Int J Strength Cond 3(1) — 128 tisíc startů IPF 2012–2022 |
+| Věkový koeficient | body × koeficient(věk) | Foster 14–22, Glossbrennerem opravený McCulloch 41–80, USAPL 81–90 (varianta OpenPowerlifting) |
 | Pokusy | 91 % / 96,5 % / 102 % z E1RM | rozbor MS IPF 2012–2019 |
 | Úspěšnost pokusů | povedené ÷ platné pokusy × 100 | rozbor MS IPF 2016 (Stronger by Science) |
 | DOTS | součet × 500 ÷ polynom 4. stupně | ověřeno proti OpenPowerlifting |
@@ -82,6 +92,61 @@ detekce plateau na E1RM, nakládání osy v kilech i librách a váhové kategor
 
 Doplňkové cviky nemají 1RM, takže se počítají jen do tonáže — do intenzity,
 INOL, Prilepinových zón ani tvrdých sérií nevstupují.
+
+## Kde appka záměrně nedělá, že ví víc, než ví
+
+Tři metody stojí na číslech, která nejsou z powerliftingu nebo nejsou změřená
+vůbec. Appka je počítá, protože jsou užitečné — ale říká to nahlas, přímo na
+obrazovce, ne jen tady.
+
+**Model kondice a únavy.** Časové konstanty 42 a 7 dnů a poměr vah 2 : 1
+pocházejí z vytrvalostních sportů; individuálně nafitované hodnoty pro silový
+trénink publikované nejsou. Appka proto počítá v bezrozměrných jednotkách, čte
+je jen proti vlastní historii závodníka a nikdy nepředpovídá kilogramy. Užitečný
+je tvar křivky, ne číslo.
+
+**Objemové mezníky MEV / MAV / MRV.** Konkrétní počty sérií nejsou nikde
+empiricky změřené — jsou to trenérské odhady. Appka proto žádnou hranici
+v sériích netvrdí a místo toho hlídá důsledky: jestli se přestal zvedat výkon,
+jestli stejný plán jede na vyšší RPE a jestli spadla pohoda. Dvě známky ze tří
+naráz jsou signál, jedna je šum.
+
+**Rozložení součtu.** Studie ukazuje souvislost, ne příčinu. Závodníci uvnitř
+pásma mají v průměru vyšší IPF GL, ale z toho neplyne, že se součet zvedne tím,
+že se poměr narovná. Délka končetin a stavba těla posunou podíl legitimně
+a natrvalo, takže se to čte jako otázka, ne jako předpis.
+
+Ke stejnému účelu slouží i spodní mez typické chyby: dokonale lineární řada
+zápisů by dala nulový rozptyl a appka by pak prohlásila za prokazatelné
+i zlepšení o sto gramů. Hranice 3 % z průměru leží pod spodním okrajem
+publikovaného rozpětí opakovatelnosti odhadu 1RM — appka radši podstřelí, než
+aby prohlásila šum za zlepšení.
+
+Podrobná rešerše, ze které tyhle metody vzešly, včetně toho, co se do appky
+záměrně nedostalo, je v [RESEARCH.md](RESEARCH.md).
+
+## Vzhled
+
+Povrchy jsou neutrální a ploché; jediná sytá barva na obrazovce patří datům
+nebo jedné akci. Barva v grafu nese úlohu:
+
+- **soutěžní cviky jsou kategorie** — tři odstíny ověřené na odlišitelnost
+  i při barvosleposti (nejhorší pár ΔE 9,2 ve světlém motivu, 9,4 v tmavém);
+  doplňky nejsou čtvrtá rovnocenná kategorie, ale „zbytek", takže jdou do
+  neutrální šedé,
+- **intenzitní zóny jsou pořadí** — jeden odstín ve čtyřech krocích, světlý
+  → tmavý. Duha na uspořádaná data nutí čtenáře luštit legendu,
+- **kotoučové barvy zůstaly tam, kde znamenají kotouč** — na vykreslené ose
+  a ve skladu. Přebarvit je by znamenalo, že obrázek přestane odpovídat
+  železu v regálu.
+
+Světlý i tmavý motiv jsou navržené zvlášť, ne převrácené. Přepínač v horní
+liště přebíjí nastavení systému. Písmo je systémové — appka běží offline
+z `localStorage` a stahovat kvůli ní font z CDN by znamenalo, že v posilovně
+bez signálu vypadá rozbitě.
+
+`Ctrl/Cmd + K` otevře paletu příkazů (obrazovky, svěřenci, nastavení). Každá
+obrazovka jde vytisknout — plán se dá vzít do posilovny na papíře.
 
 ## Struktura
 

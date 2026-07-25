@@ -87,7 +87,7 @@ function build(view, render, nav) {
             stackedBars(
               analysis.weeks.map((w) => ({ label: `T${w.week}`, values: w.lifts })),
               [...COMP_LIFTS, 'accessory'].map((k) => ({ key: k, label: LIFTS[k].label, color: LIFTS[k].color })),
-              { fmt: (v) => `${bigNum(S.toDisplay(v))}` }),
+              { fmt: (v) => `${bigNum(S.toDisplay(v))}`, unit: U() }),
             h('div.split-legend', { style: { marginTop: '16px' } },
               ...[...COMP_LIFTS, 'accessory'].map((k) =>
                 h('div.split-item', h('i', { style: { background: LIFTS[k].color } }), h('span.split-name', LIFTS[k].label)))))
@@ -112,6 +112,7 @@ function build(view, render, nav) {
   const logs = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
   const series = COMP_LIFTS.map((k) => ({
     color: LIFTS[k].color,
+    label: LIFTS[k].label,
     points: logs.filter((x) => x.lift === k)
       .sort((x, y) => new Date(x.date) - new Date(y.date))
       .map((x) => ({ date: x.date, value: S.toDisplay(x.value) })),
@@ -120,7 +121,7 @@ function build(view, render, nav) {
   view.append(h('div.grid.g-side',
     card('Vývoj maxim', { eyebrow: `E1RM v čase · ${U()}` },
       series.length
-        ? h('div', lineChart(series, { height: 210, fmt: (v) => num(v, 0) }),
+        ? h('div', lineChart(series, { height: 210, fmt: (v) => num(v, 0), unit: U() }),
             h('div.split-legend', { style: { marginTop: '10px' } },
               ...COMP_LIFTS.map((k) => h('div.split-item', h('i', { style: { background: LIFTS[k].color } }), h('span.split-name', LIFTS[k].label)))))
         : h('div.chart-empty', 'Zapiš aspoň dvě maxima, ať je co kreslit.')),

@@ -112,7 +112,7 @@ function build(root, render) {
       cells: [
         h('span.mono', num(t, 2)),
         { num: true, value: num(l.total, 2) },
-        { num: true, value: l.delta === 0 ? h('span', { style: { color: 'var(--green)' } }, 'přesně') : h('span', { style: { color: 'var(--yellow)' } }, `${l.delta > 0 ? '+' : ''}${num(l.delta, 2)}`) },
+        { num: true, value: l.delta === 0 ? h('span', { style: { color: 'var(--ok)' } }, 'přesně') : h('span', { style: { color: 'var(--warn)' } }, `${l.delta > 0 ? '+' : ''}${num(l.delta, 2)}`) },
         h('div.plate-legend', ...l.plates.map((p) => h('div.plate-chip', h('i', { style: { background: p.color } }), `${p.count}×${num(p.kg, 2)}`))),
       ],
     });

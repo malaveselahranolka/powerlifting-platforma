@@ -258,7 +258,7 @@ function build(root, render, nav) {
               { num: true, value: `${fixed(wk.avgIntensity, 0)} %` },
               {
                 num: true,
-                value: h('b', { style: { color: wk.peakIntensity >= 90 ? 'var(--red-lit)' : wk.peakIntensity >= 85 ? 'var(--yellow)' : 'var(--chalk)' } }, `${fixed(wk.peakIntensity, 0)} %`),
+                value: h('b', { style: { color: wk.peakIntensity >= 90 ? 'var(--bad)' : wk.peakIntensity >= 85 ? 'var(--warn)' : 'var(--ink)' } }, `${fixed(wk.peakIntensity, 0)} %`),
               },
               h('span', { title: g.note }, tag(g.label, g.tone)),
               { num: true, value: h('span.faint', num(S.toDisplay(wk.tonnage), 0)) },

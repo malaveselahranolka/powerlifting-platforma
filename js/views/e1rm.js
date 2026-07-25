@@ -180,9 +180,9 @@ function prescription(e1) {
       table(['Opakování', { label: 'RPE 10', num: true }, { label: 'RPE 9', num: true }, { label: 'RPE 8', num: true }, { label: 'RPE 7', num: true }, { label: 'RPE 6', num: true }], rows)),
     h('div.zone-legend', { style: { padding: '0 24px 20px' } },
       ...[
-        { c: 'var(--green)', t: 'pod 70 %' },
-        { c: 'var(--yellow)', t: '70–79 %' },
-        { c: 'var(--blue)', t: '80–89 %' },
-        { c: 'var(--red)', t: '90 % a výš' },
+        { c: 'var(--zone-1)', t: 'pod 70 %' },
+        { c: 'var(--zone-2)', t: '70–79 %' },
+        { c: 'var(--zone-3)', t: '80–89 %' },
+        { c: 'var(--zone-4)', t: '90 % a výš' },
       ].map((z) => h('div.zone-item', h('i', { style: { background: z.c } }), z.t))));
 }

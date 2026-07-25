@@ -105,7 +105,7 @@ function blockRow(bs) {
       {
         num: true,
         value: h('b', {
-          style: { color: bs.peak >= 90 ? 'var(--red-lit)' : bs.peak >= 85 ? 'var(--yellow)' : 'var(--chalk)' },
+          style: { color: bs.peak >= 90 ? 'var(--bad)' : bs.peak >= 85 ? 'var(--warn)' : 'var(--ink)' },
           title: bs.peakSource
             ? `${LIFTS[bs.peakSource.lift]?.label ?? bs.peakSource.lift}, ${shortDate(bs.peakSource.date)}: ${W(bs.peakSource.weight, 1)} ${U()} (${fixed(bs.peakSource.pct, 1)} % z tehdejšího maxima)`
             : undefined,
@@ -121,8 +121,8 @@ function blockRow(bs) {
    Trend mezi bloky — objem a intenzita
    ========================================================= */
 function trendCards(blockStats) {
-  const tonnageSeries = [{ color: 'var(--red)', points: blockStats.map((bs) => ({ date: bs.block.start, value: S.toDisplay(bs.avgTonnage) })) }];
-  const peakSeries = [{ color: 'var(--blue)', points: blockStats.map((bs) => ({ date: bs.block.start, value: bs.peak })) }];
+  const tonnageSeries = [{ color: 'var(--series-1)', label: 'Průměrná tonáž', points: blockStats.map((bs) => ({ date: bs.block.start, value: S.toDisplay(bs.avgTonnage) })) }];
+  const peakSeries = [{ color: 'var(--series-2)', label: 'Špička', points: blockStats.map((bs) => ({ date: bs.block.start, value: bs.peak })) }];
 
   return h('div.grid.g2',
     card('Objem mezi bloky', { eyebrow: `Průměrná týdenní tonáž na blok · ${U()}` },
@@ -203,9 +203,10 @@ function meetCard(a, render) {
 }
 
 function meetTrend(meets, a) {
-  const totalSeries = [{ color: 'var(--red)', points: meets.map((m) => ({ date: m.date, value: S.toDisplay(C.meetTotal(m.attempts)) })) }];
+  const totalSeries = [{ color: 'var(--series-1)', label: 'Součet', points: meets.map((m) => ({ date: m.date, value: S.toDisplay(C.meetTotal(m.attempts)) })) }];
   const srSeries = [{
-    color: 'var(--blue)',
+    color: 'var(--series-2)',
+    label: 'Úspěšnost',
     points: meets.map((m) => { const sr = C.meetSuccessRate(m.attempts); return { date: m.date, value: sr ? sr.pct : 0 }; }),
   }];
   return h('div.grid.g2', { style: { marginTop: '16px' } },
