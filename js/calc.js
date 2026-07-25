@@ -3,7 +3,7 @@
 import {
   RPE_SEQ, RPE_STEPS, PRILEPIN, INOL_SESSION, INOL_WEEK,
   DOTS_COEF, IPF_GL_COEF, WILKS_COEF, WEIGHT_CLASSES,
-  PLATES_KG, PLATES_LB,
+  PLATES_KG, PLATES_LB, SBD_RATIOS, AGE_COEFF, AGE_COEFF_SOLID,
 } from './data.js';
 
 export const LB_PER_KG = 2.2046226218;
@@ -1183,16 +1183,19 @@ export function gradeForm(state) {
  *
  * Bez ní by pár zápisů, které náhodou padnou na přímku, dalo nulový rozptyl
  * a appka by pak prohlásila za prokazatelné i zlepšení o 100 gramů. Žádné
- * měření není přesnější než svoje vlastní opakovatelnost: samotný test 1RM
- * se mezi dvěma dny liší řádově o jednotky procent a odhad ze submaximální
- * série na RPE je ještě nejistější, protože k němu přibude chyba odhadu RPE.
+ * měření není přesnější než svoje vlastní opakovatelnost.
  *
- * 2,5 % je hranice zvolená appkou na konzervativní straně publikovaného
- * rozpětí opakovatelnosti testu 1RM (jednotky procent) — ne převzatá
- * konstanta z konkrétní studie. Když z dat vyjde rozptyl větší, appka
- * použije ten skutečný; menší než tohle neuzná.
+ * Publikovaná variabilita odhadu 1RM z predikčních rovnic je 4,5 až 13,2 %
+ * a v platném rozsahu opakování se odhad od změřeného maxima liší zhruba
+ * o ±5 %. K tomu přibývá chyba odhadu samotného RPE: Helms a kol. (2017)
+ * naměřili u powerlifterů odchylku nahlášeného RPE od cíleného 0,33 ± 0,28
+ * bodu.
+ *
+ * 3 % je tedy hranice na spodním okraji publikovaného rozpětí — appka spíš
+ * podstřelí, než aby prohlásila šum za zlepšení. Když z dat vyjde rozptyl
+ * větší, použije se ten skutečný; menší appka neuzná.
  */
-export const E1RM_NOISE_FLOOR_PCT = 2.5;
+export const E1RM_NOISE_FLOOR_PCT = 3;
 
 export function measurementNoise(points) {
   if (!points || points.length < 4) return null;
@@ -1241,46 +1244,7 @@ export function isRealChange(from, to, noise) {
    ========================================================= */
 
 /**
- * Pásma vycházejí z rozborů veřejné databáze OpenPowerlifting nad klasickým
- * (raw) trojbojem: benčpres se u drtivé většiny závodníků drží kolem dvou
- * třetin dřepu a mrtvý tah bývá o desetinu až čtvrtinu nad dřepem.
- *
- * Není to předpis — páka, délka končetin a stavba těla poměr posunou
- * legitimně a natrvalo. Slouží k jedinému: upozornit, že jeden cvik
- * zaostává za zbytkem *u tohohle člověka*, a nabídnout to jako otázku,
- * ne jako diagnózu.
- */
-export const LIFT_RATIOS = [
-  { key: 'benchSquat', of: 'bench', per: 'squat', low: 0.60, high: 0.80, label: 'Benčpres ku dřepu' },
-  { key: 'deadliftSquat', of: 'deadlift', per: 'squat', low: 1.05, high: 1.35, label: 'Mrtvý tah ku dřepu' },
-  { key: 'benchDeadlift', of: 'bench', per: 'deadlift', low: 0.48, high: 0.68, label: 'Benčpres ku mrtvému tahu' },
-];
-
-export function liftBalance(e1rm) {
-  const out = [];
-  for (const r of LIFT_RATIOS) {
-    const a = e1rm[r.of];
-    const b = e1rm[r.per];
-    if (!(a > 0) || !(b > 0)) continue;
-    const ratio = a / b;
-    const mid = (r.low + r.high) / 2;
-    out.push({
-      ...r,
-      ratio: round(ratio, 3),
-      pct: round(ratio * 100, 1),
-      state: ratio < r.low ? 'low' : ratio > r.high ? 'high' : 'ok',
-      // o kolik kg by cvik musel povyrůst, aby se dostal do pásma
-      toBand: ratio < r.low ? round(b * r.low - a, 1) : ratio > r.high ? round(b * r.high - a, 1) : 0,
-      toMid: round(b * mid - a, 1),
-    });
-  }
-  return out;
-}
-
-/**
- * Rozpad součtu na tři cviky v procentech. U klasického trojboje se
- * podíly drží zhruba na 34 / 25 / 41 % — je to jiný pohled na tu samou věc
- * jako poměry výš, ale čte se rychleji.
+ * Rozpad součtu na tři cviky v procentech.
  */
 export function totalSplit(e1rm) {
   const total = ['squat', 'bench', 'deadlift'].reduce((s, k) => s + (e1rm[k] ?? 0), 0);
@@ -1291,4 +1255,259 @@ export function totalSplit(e1rm) {
     bench: round(((e1rm.bench ?? 0) / total) * 100, 1),
     deadlift: round(((e1rm.deadlift ?? 0) / total) * 100, 1),
   };
+}
+
+const SBD_KEYS = { squat: 'sq', bench: 'bp', deadlift: 'dl' };
+
+/**
+ * Kde se podíly tří cviků na součtu drží proti elitním závodníkům ve stejné
+ * váhové kategorii, se stejným pohlavím a stejnou výstrojí.
+ *
+ * Tohle je jiná otázka než „kolik dřepneš". Součet se dá poskládat mnoha
+ * způsoby a bro pravidla typu 3:4:5 ignorují, že poměry se posouvají
+ * s kategorií: nejlehčí muži dávají v klasice do mrtvého tahu skoro 40 %
+ * součtu, nejtěžší jen 37 %, a ve vybavené soutěži je to celé jinak, protože
+ * dres pomáhá dřepu a benči, ne tahu.
+ *
+ * Vrací u každého cviku podíl, pásmo, z-skóre proti elitnímu průměru a kolik
+ * kilogramů dělí závodníka od spodní hranice pásma.
+ *
+ * DŮLEŽITÉ K VÝKLADU: studie ukazuje asociaci, ne příčinu. Závodníci uvnitř
+ * pásma mají vyšší IPF GL, ale to neznamená, že se součet zvedne tím, že se
+ * poměr narovná. Formulace v UI proto zní „mimo pásmo elitních závodníků",
+ * ne „musíš víc dřepovat".
+ */
+export function sbdBalance(e1rm, { sex = 'm', bw = 0, equipment = 'classic' } = {}) {
+  const split = totalSplit(e1rm);
+  if (!split || !(bw > 0)) return null;
+
+  const table = SBD_RATIOS[equipment]?.[sex];
+  if (!table) return null;
+
+  // Nejlehčí kategorie appky (53 kg muži, 43 kg ženy) studie nepokrývá —
+  // vezme se nejbližší vyšší řádek a příznak řekne, že jde o přiblížení.
+  const row = table.find((r) => bw <= r.limit) ?? table.at(-1);
+  const approxClass = bw <= (table[0].limit - 6);
+
+  const lifts = ['squat', 'bench', 'deadlift'].map((lift) => {
+    const [mean, sd, min, max] = row[SBD_KEYS[lift]];
+    const pct = split[lift];
+    const state = pct < min ? 'low' : pct > max ? 'high' : 'ok';
+    // o kolik kg by cvik musel povyrůst k dolní hranici, při zbytku beze změny.
+    // podíl = x / (x + zbytek) = min/100  ⇒  x = zbytek · min / (100 − min)
+    const rest = split.total - (e1rm[lift] ?? 0);
+    const toBand = state === 'low'
+      ? round((rest * min) / (100 - min) - (e1rm[lift] ?? 0), 1)
+      : state === 'high'
+        ? round((rest * max) / (100 - max) - (e1rm[lift] ?? 0), 1)
+        : 0;
+    return {
+      lift, pct, mean, sd, min, max, state, toBand,
+      z: sd > 0 ? round((pct - mean) / sd, 2) : null,
+      toMean: round((rest * mean) / (100 - mean) - (e1rm[lift] ?? 0), 1),
+    };
+  });
+
+  return {
+    total: split.total,
+    classLabel: row.limit === Infinity ? `${table.at(-2).limit}+ kg` : `do ${row.limit} kg`,
+    firm: row.firm,
+    approxClass,
+    lifts,
+    balanced: lifts.every((l) => l.state === 'ok'),
+    // "MMM" vyvážený, "LMH" slabý dřep a silný tah — zkratka do jednoho řetězce
+    code: lifts.map((l) => (l.state === 'low' ? 'L' : l.state === 'high' ? 'H' : 'M')).join(''),
+  };
+}
+
+/* =========================================================
+   Věkové koeficienty
+   ========================================================= */
+
+/**
+ * Násobitel bodů podle věku. Pozor na pořadí: násobí se výsledné body
+ * (DOTS / Wilks / IPF GL), ne součet v kilogramech.
+ *
+ * `approximate` řeší případ, kdy je známý jen ročník, ne datum narození.
+ * OpenPowerlifting to řeší asymetricky: u mladších než 30 se předpokládá
+ * vyšší věk z rozsahu, u masters nižší — v obou případech tak koeficient
+ * spíš podstřelí, než aby závodníka zvýhodnil.
+ */
+export function ageCoefficient(age, { approximate = false } = {}) {
+  if (age == null || !Number.isFinite(age) || age < 0) return null;
+  const a = Math.floor(age);
+  if (a > 100) return { coeff: AGE_COEFF.at(-1), solid: false, age: a };
+  const idx = approximate && a < 30 ? a + 1 : a;
+  const coeff = AGE_COEFF[Math.min(idx, AGE_COEFF.length - 1)];
+  if (!(coeff > 0)) return null;
+  return {
+    coeff,
+    age: a,
+    // krajní úseky tabulky jsou ve zdroji odhad, ne dohodnutá federační hodnota
+    solid: a >= AGE_COEFF_SOLID.min && a <= AGE_COEFF_SOLID.max,
+  };
+}
+
+/** Body přepočtené na věk. Vrací null, když věk není zadaný. */
+export function ageAdjusted(points, age, opts) {
+  const c = ageCoefficient(age, opts);
+  if (c == null || points == null || !Number.isFinite(points)) return null;
+  return { ...c, points: round(points, 2), adjusted: round(points * c.coeff, 2) };
+}
+
+/* =========================================================
+   Denní připravenost z odchylky RPE
+   ========================================================= */
+
+/**
+ * Nejlepší odhad připravenosti, který jde z tréninkového deníku vytáhnout
+ * bez jediného přístroje navíc.
+ *
+ * Princip: pro každou sérii se z relativní intenzity a počtu opakování
+ * odvodí, na jaké RPE *měla* vyjít. Rozdíl proti nahlášenému RPE je
+ * reziduum — o kolik byl dnešek těžší, než měl být. Denní skóre je vážený
+ * průměr reziduí a čte se jako z-skóre proti vlastnímu klouzavému oknu,
+ * ne proti univerzální hranici.
+ *
+ * Váhy: série se váží podle INOL, protože přesnost odhadu RPE prudce klesá
+ * s počtem opakování — Zourdos a kol. (2016) naměřili u zkušených dřepařů
+ * směrodatnou odchylku nahlášeného RPE 0,32 při 100 % 1RM, ale 1,18 při
+ * 60 %. Trojka na RPE 9 nese informaci, desítka na RPE 6 skoro žádnou, a
+ * INOL tenhle poměr přirozeně kopíruje.
+ *
+ * Tohle je per-jednotka a z-skórovaná obdoba rpeCreep(), který totéž počítá
+ * po týdnech a bez normalizace.
+ */
+export function dailyReadiness(entries, e1rms, { window: win = 28 } = {}) {
+  const byDate = new Map();
+
+  for (const e of entries) {
+    const actual = e.actualRpe;
+    const e1 = e1rms[e.lift] ?? 0;
+    if (!(actual > 0) || !(e1 > 0) || !(e.weight > 0) || !(e.reps > 0)) continue;
+
+    const pct = intensity(e, e1);
+    const expected = rpeFromPct(e.reps, pct);
+    if (expected == null) continue;   // mimo tabulku — odhad by lhal
+
+    const w = Math.max(0.01, entryInol(e, e1));
+    if (!byDate.has(e.date)) byDate.set(e.date, { date: e.date, sum: 0, weight: 0, n: 0 });
+    const d = byDate.get(e.date);
+    d.sum += (actual - expected) * w;
+    d.weight += w;
+    d.n++;
+  }
+
+  const days = [...byDate.values()]
+    .filter((d) => d.weight > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((d) => ({ date: d.date, n: d.n, residual: round(d.sum / d.weight, 2) }));
+
+  // z-skóre proti předchozím dnům uvnitř okna — bez normalizace by se
+  // reziduum nedalo porovnat mezi závodníky ani mezi fázemi bloku
+  return days.map((d, i) => {
+    const past = days.slice(0, i).filter((p) => daysBetween(p.date, d.date) <= win);
+    if (past.length < 3) return { ...d, z: null, mean: null, sd: null, n28: past.length };
+    const mean = past.reduce((s, p) => s + p.residual, 0) / past.length;
+    const sd = Math.sqrt(past.reduce((s, p) => s + (p.residual - mean) ** 2, 0) / past.length);
+    return {
+      ...d,
+      mean: round(mean, 2),
+      sd: round(sd, 2),
+      n28: past.length,
+      z: sd > 0 ? round((d.residual - mean) / sd, 2) : null,
+    };
+  });
+}
+
+export function gradeReadiness(z) {
+  if (z == null) return { label: 'Málo dat', tone: 'low', note: 'Potřeba aspoň čtyři jednotky se zapsaným skutečným RPE.' };
+  if (z >= 1.5) return { label: 'Výrazně těžší', tone: 'bad', note: 'Trénink šel podstatně hůř, než u tohohle závodníka bývá zvykem. Podívej se na spánek, jídlo a co se děje mimo posilovnu.' };
+  if (z >= 1) return { label: 'Těžší než obvykle', tone: 'warn', note: 'Den byl náročnější, než měl podle plánu být. Jednou se to stane; třikrát po sobě je to signál.' };
+  if (z <= -1) return { label: 'Lehčí než obvykle', tone: 'ok', note: 'Šlo to líp, než plán čekal. Buď je závodník odpočatý, nebo se plán začíná podceňovat.' };
+  return { label: 'Podle očekávání', tone: 'ok', note: 'Trénink sedí na to, jak byl napsaný.' };
+}
+
+/* =========================================================
+   Signál dosaženého stropu regenerace (MRV)
+   ========================================================= */
+
+/**
+ * Tři nezávislé známky toho, že objem přerostl schopnost regenerace.
+ * Žádná sama o sobě nestačí — každá má jiný důvod, proč může lhát:
+ *
+ *   1. Odhad maxima neroste, přestože objem drží nebo stoupá.
+ *      Sám o sobě to může být jen týden bez těžké série.
+ *   2. Posun RPE: stejný plán jede na vyšší RPE než minule.
+ *      Sám o sobě to může být jedna špatná jednotka.
+ *   3. Hooperův index se zhoršil o 15 % a víc proti vlastnímu průměru.
+ *      Sám o sobě to může být chřipka nebo práce, ne trénink.
+ *
+ * Dvě ze tří naráz už dávají smysl číst jako „tady je strop".
+ *
+ * Skládá dohromady věci, které appka počítá jinde (plateauCheck, rpeCreep,
+ * hooperIndex) — nová je jen ta kombinace a její převod na doporučení.
+ */
+export function mrvSignal({ e1rmTrend, creepNow, creepPrev, hooperNow, hooperBaseline, hardSetsNow, hardSetsPrev }) {
+  const signals = [];
+
+  if (e1rmTrend && hardSetsNow != null && hardSetsPrev != null) {
+    const stalled = e1rmTrend.plateau || e1rmTrend.slope <= 0;
+    const volumeHeld = hardSetsNow >= hardSetsPrev;
+    signals.push({
+      key: 'vykon',
+      label: 'Výkon proti objemu',
+      hit: stalled && volumeHeld,
+      detail: stalled
+        ? (volumeHeld
+            ? 'Odhad maxima stojí, objem přitom neklesl — práce se přestala vracet.'
+            : 'Odhad maxima stojí, ale objem se snížil. To stagnaci vysvětlí samo.')
+        : 'Odhad maxima roste.',
+    });
+  }
+
+  if (creepNow != null && creepPrev != null) {
+    const hit = creepNow - creepPrev >= 0.5;
+    signals.push({
+      key: 'rpe',
+      label: 'Posun RPE proti minulému týdnu',
+      hit,
+      detail: hit
+        ? `Stejný plán jede o ${round(creepNow - creepPrev, 2)} bodu RPE dráž než minulý týden.`
+        : `Odchylka RPE se posunula o ${round(creepNow - creepPrev, 2)} bodu — pod hranicí 0,5.`,
+    });
+  }
+
+  if (hooperNow != null && hooperBaseline > 0) {
+    const hit = hooperNow >= hooperBaseline * 1.15;
+    signals.push({
+      key: 'pohoda',
+      label: 'Pohoda proti vlastnímu průměru',
+      hit,
+      detail: `Hooperův index ${round(hooperNow, 0)} proti vlastnímu průměru ${round(hooperBaseline, 1)}`
+        + `${hit ? ' — o 15 % a víc horší.' : ' — v obvyklém rozmezí.'}`,
+    });
+  }
+
+  const score = signals.filter((s) => s.hit).length;
+  return {
+    signals,
+    score,
+    max: signals.length,
+    // dvě ze tří: jedna známka je šum, dvě nezávislé už ne
+    reached: signals.length >= 2 && score >= 2,
+  };
+}
+
+export function gradeMrv(m) {
+  if (!m || m.max < 2) return { label: 'Málo dat', tone: 'low', note: 'Potřeba aspoň dva týdny tréninku se zapsaným skutečným RPE.' };
+  if (m.reached) {
+    return {
+      label: 'Strop regenerace',
+      tone: 'bad',
+      note: `Sedí ${m.score} ze ${m.max} známek naráz. Tady se objem už nevyplácí přidávat — týden odlehčení (objem dolů o polovinu, intenzitu držet) vrátí víc než další série.`,
+    };
+  }
+  if (m.score === 1) return { label: 'Jedna známka', tone: 'warn', note: 'Jedna známka sama o sobě bývá šum. Stojí za to sledovat, jestli se k ní příští týden přidá druhá.' };
+  return { label: 'Prostor je', tone: 'ok', note: 'Žádná ze sledovaných známek nesedí — objem je zatím v mezích regenerace.' };
 }

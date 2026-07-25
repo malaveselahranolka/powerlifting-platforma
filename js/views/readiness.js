@@ -14,9 +14,12 @@ import { W, U, Wu, liftDot, empty, flagRow } from './_util.js';
  *
  *   1. Kde je závodník na křivce kondice a únavy — je zahrabaný, nebo
  *      nabroušený? (dvousložkový model odezvy)
- *   2. Je poslední zlepšení skutečné, nebo se vejde do šumu měření?
+ *   2. Šel dnešek líp nebo hůř, než měl? (odchylka RPE od očekávání)
+ *   3. Není objem za stropem regenerace? (tři nezávislé známky MRV)
+ *   4. Je poslední zlepšení skutečné, nebo se vejde do šumu měření?
  *      (typická chyba a nejmenší prokazatelná změna)
- *   3. Nezaostává jeden ze tří cviků za zbytkem? (poměry mezi cviky)
+ *   5. Nezaostává jeden ze tří cviků za zbytkem? (podíly na součtu proti
+ *      elitním závodníkům ve stejné kategorii)
  */
 export function readinessView(nav) {
   const root = h('div.view');
@@ -35,7 +38,12 @@ function build(root, render, nav) {
   const entries = S.state.entries.filter((e) => e.athleteId === a.id);
   const today = S.iso(new Date());
 
+  const e1rms = a.e1rm ?? {};
+
   root.append(formCard(entries, today, nav));
+  root.append(h('div.grid.g-side',
+    readinessCard(entries, e1rms),
+    mrvCard(a, entries)));
   root.append(noiseCard(a));
   root.append(balanceCard(a));
 }
@@ -102,7 +110,114 @@ function formCard(entries, today, nav) {
 }
 
 /* =========================================================
-   2 · Šum měření
+   2 · Denní připravenost z odchylky RPE
+   ========================================================= */
+function readinessCard(entries, e1rms) {
+  const days = C.dailyReadiness(entries, e1rms);
+  const last = days.at(-1);
+  const g = C.gradeReadiness(last?.z);
+
+  if (!days.length) {
+    return card('Jak šel poslední trénink', { eyebrow: 'Odchylka RPE od očekávání' },
+      h('div.empty',
+        icon('heart', 22),
+        h('p.note', 'Zapiš u sérií skutečné RPE v Plán vs. realita. Z rozdílu proti očekávání appka dopočítá, jestli byl den těžší, než měl být.')));
+  }
+
+  const win = days.slice(-14);
+  const chart = win.length > 2
+    ? lineChart([{
+        color: 'var(--series-2)',
+        label: 'Odchylka RPE',
+        points: win.map((d) => ({ date: d.date, value: d.residual })),
+      }], { height: 150, fmt: (v) => fixed(v, 2) })
+    : null;
+
+  return card('Jak šel poslední trénink', {
+    eyebrow: 'Odchylka RPE od očekávání · z-skóre proti vlastnímu 28dennímu oknu',
+    action: tag(g.label, g.tone),
+  },
+    h('div.grid.g3',
+      stat('Odchylka RPE', `${last.residual >= 0 ? '+' : '−'}${fixed(Math.abs(last.residual), 2)}`,
+        'bodu proti očekávání', last.residual >= 0.5 ? 'warn' : null),
+      stat('Z-skóre', last.z == null ? '—' : `${last.z >= 0 ? '+' : '−'}${fixed(Math.abs(last.z), 2)}`,
+        last.n28 >= 3 ? `z ${last.n28} předchozích dnů` : 'málo historie'),
+      stat('Poslední jednotka', C.daysBetween(last.date, new Date()) === 0 ? 'dnes' : `před ${C.daysBetween(last.date, new Date())} dny`, `${last.n} sérií`)),
+
+    chart,
+
+    flagRow({ tone: g.tone, text: g.note }),
+
+    h('p.note',
+      'U každé série appka z relativní intenzity a počtu opakování odvodí, na jaké RPE měla vyjít. '
+      + 'Rozdíl proti nahlášenému RPE je odchylka — o kolik byl trénink těžší, než měl podle plánu být. '
+      + 'Série se váží podle INOL: trojka na RPE 9 nese informaci, desítka na RPE 6 skoro žádnou, '
+      + 'protože přesnost odhadu RPE prudce klesá s počtem opakování '
+      + '(Zourdos a kol. 2016: odchylka 0,32 bodu při 100 % 1RM, ale 1,18 při 60 %).'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Čte se jako z-skóre proti vlastnímu klouzavému oknu, ne proti pevné hranici — někdo hlásí RPE '
+      + 'systematicky výš než jiný a absolutní číslo by se mezi závodníky nedalo porovnat.'));
+}
+
+/* =========================================================
+   3 · Strop regenerace
+   ========================================================= */
+function mrvCard(a, entries) {
+  const blk = S.block();
+  const creep = blk ? C.rpeCreep(S.blockEntries(blk.id), blk.start) : [];
+  const hs = blk ? C.hardSets(S.blockEntries(blk.id), S.blockE1rm(blk, a), blk.start) : [];
+
+  const sumSets = (w) => (w ? Object.values(w.lifts).reduce((s, v) => s + v, 0) : null);
+  const today = S.iso(new Date());
+  const wellness = S.athleteWellness(a.id);
+  const todayWellness = wellness.find((w) => w.date === today);
+
+  // trend nejlepšího odhadu maxima napříč historií svěřence
+  const pts = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id)
+    .sort((x, y) => x.date.localeCompare(y.date))
+    .map((x) => ({ date: x.date, value: x.value }));
+
+  const m = C.mrvSignal({
+    e1rmTrend: C.plateauCheck(pts),
+    creepNow: creep.at(-1)?.avg,
+    creepPrev: creep.at(-2)?.avg,
+    hooperNow: todayWellness ? C.hooperIndex(todayWellness) : null,
+    hooperBaseline: C.hooperBaseline(wellness, today),
+    hardSetsNow: sumSets(hs.at(-1)),
+    hardSetsPrev: sumSets(hs.at(-2)),
+  });
+  const g = C.gradeMrv(m);
+
+  return card('Strop regenerace', {
+    eyebrow: 'Tři nezávislé známky · dvě naráz znamenají deload',
+    action: tag(g.label, g.tone),
+  },
+    m.max
+      ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+          ...m.signals.map((sig) => h('div.flag', { dataset: { tone: sig.hit ? 'warn' : 'ok' } },
+            icon(sig.hit ? 'alert' : 'check', 16),
+            h('span', h('b', sig.label), h('br'), h('span.faint', sig.detail)))))
+      : h('p.note', 'Zatím není z čeho známky spočítat.'),
+
+    m.max > 0 && stat('Sedících známek', `${m.score}`, `ze ${m.max}`, m.reached ? 'bad' : m.score ? 'warn' : null),
+
+    flagRow({ tone: g.tone, text: g.note }),
+
+    h('p.note',
+      'Žádná známka sama o sobě nestačí: výkon může stát kvůli jednomu lehkému týdnu, RPE může '
+      + 'vyskočit po jedné špatné jednotce a pohoda se dá zkazit prací i chřipkou. Dvě nezávislé '
+      + 'naráz už ale ukazují stejným směrem — a to je moment, kdy další série nepřidá adaptaci, '
+      + 'jen únavu.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Objemové mezníky MEV/MAV/MRV nemají empiricky změřená čísla — jsou to trenérské odhady. '
+      + 'Appka proto žádnou hranici v sériích netvrdí a místo toho hlídá důsledky: jestli se '
+      + 'přestal zvedat výkon, jestli stejný plán jede na vyšší RPE a jestli spadla pohoda.'));
+}
+
+/* =========================================================
+   4 · Šum měření
    ========================================================= */
 function noiseCard(a) {
   const log = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
@@ -187,55 +302,82 @@ function noiseCard(a) {
 }
 
 /* =========================================================
-   3 · Poměry mezi cviky
+   5 · Podíly cviků na součtu
    ========================================================= */
 function balanceCard(a) {
-  const bal = C.liftBalance(a.e1rm);
-  const split = C.totalSplit(a.e1rm);
+  const bal = C.sbdBalance(a.e1rm, { sex: a.sex, bw: a.bw, equipment: a.equipment });
 
-  if (!bal.length || !split) {
-    return card('Rovnováha mezi cviky', { eyebrow: 'Kde zaostává' },
-      h('p.note', 'Doplň maxima všech tří soutěžních cviků v sekci Svěřenci.'));
+  if (!bal) {
+    return card('Rozložení součtu', { eyebrow: 'Kde zaostává' },
+      h('p.note', 'Doplň maxima všech tří soutěžních cviků a tělesnou váhu v sekci Svěřenci.'));
   }
 
-  const toneOf = (s) => (s === 'ok' ? 'ok' : 'warn');
   const stateLabel = { low: 'pod pásmem', ok: 'v pásmu', high: 'nad pásmem' };
+  const stateTone = { low: 'warn', ok: 'ok', high: 'neutral' };
+  const eqLabel = a.equipment === 'equipped' ? 'vybavená' : 'klasika';
 
-  return card('Rovnováha mezi cviky', {
-    eyebrow: 'Poměry z klasického trojboje · orientační pásma',
+  return card('Rozložení součtu', {
+    eyebrow: `Proti elitním závodníkům · ${eqLabel} · ${bal.classLabel} · ${a.sex === 'f' ? 'ženy' : 'muži'}`,
+    action: tag(bal.balanced ? 'Vyvážené' : 'Mimo pásmo', bal.balanced ? 'ok' : 'warn'),
   },
     h('div.grid.g3',
-      ...COMP_LIFTS.map((k) =>
-        h('div.stat',
-          h('div.stat-label', h('span', liftDot(k)), LIFTS[k].label),
-          h('div.stat-value', num(split[k], 1), h('span.stat-unit', '% součtu')),
-          h('div.stat-sub', Wu(a.e1rm[k], 1))))),
+      ...bal.lifts.map((l) =>
+        h('div.stat', { dataset: l.state === 'low' ? { tone: 'warn' } : {} },
+          h('div.stat-label', liftDot(l.lift), LIFTS[l.lift].label),
+          h('div.stat-value', num(l.pct, 1), h('span.stat-unit', '% součtu')),
+          h('div.stat-sub', `${Wu(a.e1rm[l.lift], 1)} · elita ${num(l.mean, 1)} %`)))),
 
     table(
-      ['Poměr', { label: 'Teď', num: true }, { label: 'Pásmo', num: true }, 'Stav', { label: `Do pásma (${U()})`, num: true }],
-      bal.map((r) => ({
-        tone: r.state === 'ok' ? 'ok' : 'warn',
+      ['Cvik',
+        { label: 'Podíl', num: true },
+        { label: 'Pásmo elity', num: true },
+        { label: 'Odchylka', num: true },
+        'Stav',
+        { label: `Do pásma (${U()})`, num: true }],
+      bal.lifts.map((l) => ({
+        tone: l.state === 'low' ? 'warn' : l.state === 'ok' ? 'ok' : null,
         cells: [
-          r.label,
-          { num: true, value: `${num(r.pct, 0)} %` },
-          { num: true, value: `${num(r.low * 100, 0)}–${num(r.high * 100, 0)} %` },
-          tag(stateLabel[r.state], toneOf(r.state)),
-          { num: true, value: r.toBand === 0 ? '—' : `${r.toBand > 0 ? '+' : '−'}${W(Math.abs(r.toBand), 1)}` },
+          h('span', liftDot(l.lift), LIFTS[l.lift].label),
+          { num: true, value: `${num(l.pct, 1)} %` },
+          { num: true, value: `${num(l.min, 1)}–${num(l.max, 1)} %` },
+          { num: true, value: l.z == null ? '—' : `${l.z >= 0 ? '+' : '−'}${fixed(Math.abs(l.z), 2)} σ` },
+          tag(stateLabel[l.state], stateTone[l.state]),
+          { num: true, value: l.toBand === 0 ? '—' : `${l.toBand > 0 ? '+' : '−'}${W(Math.abs(l.toBand), 1)}` },
         ],
       }))),
 
-    ...bal.filter((r) => r.state !== 'ok').map((r) => flagRow({
+    ...bal.lifts.filter((l) => l.state === 'low').map((l) => flagRow({
       tone: 'warn',
-      text: r.state === 'low'
-        ? `${r.label} je ${num(r.pct, 0)} % — pod obvyklým pásmem. Buď má ${LIFTS[r.of].label.toLowerCase()} co dohánět, nebo je ${LIFTS[r.per].label.toLowerCase()} nadprůměrně silný. Rozdíl pozná jen kouč, ne appka.`
-        : `${r.label} je ${num(r.pct, 0)} % — nad obvyklým pásmem. Bývá to silná stránka, ale stojí za pohled, jestli druhý cvik nezaostává.`,
+      text: `${LIFTS[l.lift].label} nese ${num(l.pct, 1)} % součtu — elitní závodníci ve stejné kategorii `
+        + `mají ${num(l.min, 1)} až ${num(l.max, 1)} %. Do pásma by chybělo ${num(S.toDisplay(Math.abs(l.toBand)), 1)} ${U()}, `
+        + 'pokud by zbylé dva cviky zůstaly, kde jsou.',
     })),
 
-    bal.every((r) => r.state === 'ok') && flagRow({ tone: 'ok', text: 'Všechny tři cviky drží v obvyklých poměrech — žádný z nich viditelně nezaostává.' }),
+    bal.balanced && flagRow({
+      tone: 'ok',
+      text: `Všechny tři cviky nesou podíl, který je u elity v kategorii ${bal.classLabel} obvyklý. Na rozložení součtu není co opravovat.`,
+    }),
+
+    !bal.firm && flagRow({
+      tone: 'low',
+      text: `Pro kategorii ${bal.classLabel} v téhle výstroji autor studie statistickou podporu pásma nenašel. `
+        + 'Ber ho jako orientační cíl, ne jako verdikt.',
+    }),
+
+    bal.approxClass && flagRow({
+      tone: 'low',
+      text: 'Studie tuhle váhovou kategorii nepokrývá — použil se nejbližší vyšší řádek, takže pásmo sedí jen přibližně.',
+    }),
 
     h('p.note',
-      'Pásma vycházejí z rozborů veřejné databáze OpenPowerlifting nad klasickým trojbojem. '
-      + 'Nejsou to normy, které by se měly dohánět za každou cenu: délka končetin a stavba těla '
-      + 'posunou poměr legitimně a natrvalo. Berou se jako otázka — proč zrovna tenhle cvik '
-      + 'zaostává? — ne jako diagnóza.'));
+      'Součet se dá poskládat mnoha způsoby a poměry se posouvají s kategorií i výstrojí: nejlehčí muži '
+      + 'dávají v klasice do mrtvého tahu skoro 40 % součtu, nejtěžší jen 37 %, a ve vybavené soutěži je to '
+      + 'celé jinak, protože dres pomáhá dřepu a benči, ne tahu. Pásma proto nejsou jedno univerzální '
+      + 'pravidlo typu 3:4:5, ale tabulka pro konkrétní kategorii, pohlaví a výstroj.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Pozor na výklad: studie ukazuje souvislost, ne příčinu. Závodníci uvnitř pásma mají v průměru vyšší '
+      + 'IPF GL, ale z toho neplyne, že se součet zvedne tím, že se poměr narovná. Délka končetin a stavba '
+      + 'těla posunou podíl legitimně a natrvalo. Čti to jako otázku, ne jako předpis. Data: '
+      + 'Hernández Ugalde (2023), Int J Strength Cond 3(1) — závody IPF 2012–2022, 128 tisíc startů, věk 24–39.'));
 }
