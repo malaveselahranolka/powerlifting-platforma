@@ -1425,6 +1425,59 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 }
 
 /* =========================================================
+   Doporučení
+   ========================================================= */
+
+.advice {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink-3);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.advice[data-tone='bad'] { border-left-color: var(--bad); }
+.advice[data-tone='warn'] { border-left-color: var(--warn); }
+.advice[data-tone='ok'] { border-left-color: var(--ok); }
+.advice[data-tone='low'] { border-left-color: var(--info); }
+
+.advice-head { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.advice-head .ic { flex: none; color: var(--ink-3); }
+.advice[data-tone='bad'] .advice-head .ic { color: var(--bad); }
+.advice[data-tone='warn'] .advice-head .ic { color: var(--warn); }
+.advice[data-tone='ok'] .advice-head .ic { color: var(--ok); }
+.advice[data-tone='low'] .advice-head .ic { color: var(--info); }
+
+.advice-title { font-size: 14px; font-weight: 600; line-height: 1.4; flex: 1; min-width: 0; }
+.advice-why { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.55; }
+
+.advice-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.advice-do {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  flex: 1;
+  min-width: 220px;
+}
+
+.advice-do b { font-weight: 600; }
+
+@media (max-width: 860px) {
+  .advice-foot .btn { width: 100%; }
+}
+
+/* =========================================================
    Kalendář
    ========================================================= */
 

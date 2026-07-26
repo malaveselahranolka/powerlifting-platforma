@@ -593,6 +593,22 @@ export const GLOSSARY = [
 
   /* ---------------- Plánování ---------------- */
   {
+    id: 'doporuceni',
+    group: 'planovani',
+    term: 'Doporučení',
+    full: 'Co appka vidí — a proč nic nepřepisuje',
+    short: 'Signály z ostatních obrazovek seřazené podle naléhavosti, s vyznačenou silou důvodu.',
+    formula: 'naléhavost 1 = jednej teď · 2 = tenhle týden · 3 = dobré vědět\nsíla důvodu: studie / praxe / appka',
+    bands: [
+      { range: 'studie', label: 'Opřeno o recenzovaný zdroj', tone: 'ok' },
+      { range: 'praxe', label: 'Trenérská konvence nebo federační norma, ne výzkum', tone: 'low' },
+      { range: 'appka', label: 'Konstrukce této aplikace — užitečná, nikde neověřená', tone: 'warn' },
+    ],
+    body: 'Appka umí spočítat, že příští týden vychází o pár procent jinak. Neví ale, že závodník minulý týden stěhoval, že ho bolí rameno nebo že za měsíc jede na dovolenou. Automatický přepis plánu by tyhle informace přebil čísly, která je neznají — proto obrazovka jen řekne, co se stalo, co s tím, a jak silný je pro to důvod. Zápis zůstává na koučovi.',
+    how: 'Sílu důvodu čti jako váhu, ne jako pravdivost. Doporučení označené „appka" nemusí být horší rada než to označené „studie" — jen za ním nestojí nic než logika téhle aplikace, takže když ti odporuje vlastní zkušenost, má vyhrát zkušenost. U „studie" je ta laťka opačně.',
+    source: 'Sestavování samo je konstrukce této aplikace. Jednotlivá doporučení nesou sílu důvodu toho pojmu, ze kterého vycházejí — ta je u každého vidět.',
+  },
+  {
     id: 'frekvence',
     group: 'planovani',
     term: 'Frekvence a rozestupy',

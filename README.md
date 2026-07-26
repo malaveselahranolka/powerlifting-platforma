@@ -28,7 +28,7 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 332 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 355 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
@@ -41,12 +41,13 @@ odhad maxima z profilu zatížení a rychlosti i prahy poklesu, interval spolehl
 sklonu (proti nezávislé regresi), Theil–Sen, Mann–Kendall, detekce zlomu, modely
 taperu, časová osa závodního dne, percentily síly, 5/3/1, rozložení intenzit,
 index specifičnosti, tempo nárůstu, kalkulačka shazování váhy, souhrn jednotky,
-frekvence na cvik a rozestupy těžkých expozic.
+frekvence na cvik, rozestupy těžkých expozic a sestavování doporučení.
 
 ## Co to umí
 
 | Obrazovka | K čemu |
 |---|---|
+| **Doporučení** | Signály ze všech obrazovek seřazené podle naléhavosti — co se stalo, co s tím, a jak silný je pro to důvod. Nic nepřepisuje |
 | **Přehled** | Součet trojboje, DOTS / IPF GL, tonáž po týdnech, skutečné RPE proti plánu, Hooperův index pohody, detekce plateau na E1RM, plán na tento týden |
 | **E1RM** | Odhad maxima z výkonu (RPE/RTS + 7 vzorců) a zpětně váha na ose pro cílové opakování × RPE |
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
@@ -62,7 +63,7 @@ frekvence na cvik a rozestupy těžkých expozic.
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík, časová osa podle pořadí v nominaci, ladění formy ve třech modelech, kalkulačka shazování váhy, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, percentily relativní síly, vliv tělesné váhy na koeficient |
 | **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 51 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Vysvětlivky** | 52 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 

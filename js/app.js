@@ -19,10 +19,12 @@ import { macroView } from './views/macro.js';
 import { readinessView } from './views/readiness.js';
 import { velocityView } from './views/velocity.js';
 import { calendarView } from './views/calendar.js';
+import { adviceView } from './views/advice.js';
 import * as cloud from './cloud.js';
 
 const ROUTES = [
   { id: 'dashboard', label: 'Přehled', ic: 'gauge', title: 'Přehled', sub: 'Kde svěřenec stojí a kam se hýbe.', view: dashboard },
+  { id: 'doporuceni', label: 'Doporučení', ic: 'info', title: 'Doporučení', sub: 'Co appka vidí a co s tím — rozhodnutí zůstává na tobě.', view: adviceView },
   { group: 'Nástroje' },
   { id: 'e1rm', label: 'E1RM', ic: 'calculator', title: 'Kalkulačka E1RM', sub: 'Z výkonu na odhad maxima a zpátky na váhu na ose.', view: e1rmView },
   { id: 'rpe', label: 'RPE tabulka', ic: 'grid', title: 'RPE tabulka', sub: 'Opakování × RPE převedené na procenta a kilogramy.', view: rpeView },

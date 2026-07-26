@@ -819,6 +819,117 @@ group('Kalendář a rytmus týdne');
   near('cvik bez známého maxima se přeskočí', C.heavySpacing(heavy, {}).length, 0, 0);
 }
 
+group('Doporučení');
+{
+  const a = { id: 'a1', name: 'Test', sex: 'm', bw: 92.9, equipment: 'classic', e1rm: { squat: 200, bench: 130, deadlift: 240 } };
+  const blk = { id: 'b1', athleteId: 'a1', start: '2026-03-02', weeks: 4, name: 'Blok' };
+  const e1 = { squat: 200, bench: 130, deadlift: 240 };
+  const mk = (date, lift, sets, reps, weight, extra = {}) =>
+    ({ id: date + lift, blockId: 'b1', athleteId: 'a1', date, lift, sets, reps, weight, rpe: 8, ...extra });
+
+  near('bez dat žádná doporučení', C.recommendations({}).length, 0, 0);
+
+  // dvě těžké jednotky dřepu po sobě (180/200 = 90 %)
+  const tight = C.recommendations({
+    athlete: a, block: blk, e1rms: e1, today: '2026-03-20',
+    entries: [mk('2026-03-02', 'squat', 1, 1, 180), mk('2026-03-03', 'squat', 1, 1, 182)],
+  });
+  const gap = tight.find((r) => r.id === 'rozestup-squat');
+  near('rozestup den po dni se ohlásí', gap ? 1 : 0, 1, 0);
+  near('a je to nejvyšší naléhavost', gap.priority, 1, 0);
+  near('podložení je trenérská praxe', gap.weight === 'praxe' ? 1 : 0, 1, 0);
+  near('odkazuje na kalendář', gap.screen === 'kalendar' ? 1 : 0, 1, 0);
+
+  // chybějící zápisy
+  const noLogs = C.recommendations({
+    athlete: a, block: blk, e1rms: e1, today: '2026-03-20',
+    entries: ['2026-03-02', '2026-03-04', '2026-03-06', '2026-03-09'].map((d) => mk(d, 'bench', 3, 5, 100)),
+  });
+  near('chybějící zápisy se ohlásí', noLogs.some((r) => r.id === 'zapisy') ? 1 : 0, 1, 0);
+  near('ale jen jako druhá priorita', noLogs.find((r) => r.id === 'zapisy').priority, 2, 0);
+
+  // váha na hraně kategorie před závodem
+  const heavy = C.recommendations({
+    athlete: { ...a, bw: 92.9 }, block: blk, e1rms: e1, today: '2026-03-20',
+    entries: [], meets: [{ date: '2026-04-10', name: 'Krajský' }],
+  });
+  near('váha na hraně limitu se ohlásí', heavy.some((r) => r.id === 'vaha-limit') ? 1 : 0, 1, 0);
+  const light = C.recommendations({
+    athlete: { ...a, bw: 88 }, block: blk, e1rms: e1, today: '2026-03-20',
+    entries: [], meets: [{ date: '2026-04-10' }],
+  });
+  near('s rezervou se nehlásí nic', light.some((r) => r.id === 'vaha-limit') ? 0 : 1, 1, 0);
+
+  // zaostávající cvik: benč 100 z 540 = 18,5 %, pásmo pro 93 kg je 21,45–26,48
+  const weakBench = C.recommendations({
+    athlete: { ...a, e1rm: { squat: 220, bench: 100, deadlift: 260 } },
+    block: blk, e1rms: e1, today: '2026-03-20', entries: [],
+  });
+  near('zaostávající benč se ohlásí', weakBench.some((r) => r.id === 'zaostava-bench') ? 1 : 0, 1, 0);
+  near('a je podložený studií', weakBench.find((r) => r.id === 'zaostava-bench').weight === 'studie' ? 1 : 0, 1, 0);
+
+  // seřazení podle naléhavosti
+  const mixed = C.recommendations({
+    athlete: { ...a, bw: 92.9, e1rm: { squat: 220, bench: 100, deadlift: 260 } },
+    block: blk, e1rms: e1, today: '2026-03-20',
+    entries: [mk('2026-03-02', 'squat', 1, 1, 180), mk('2026-03-03', 'squat', 1, 1, 182)],
+    meets: [{ date: '2026-04-10' }],
+  });
+  near('doporučení jsou seřazená podle naléhavosti',
+    mixed.every((r, i) => i === 0 || r.priority >= mixed[i - 1].priority) ? 1 : 0, 1, 0);
+  near('každé nese sílu důvodu',
+    mixed.every((r) => ['studie', 'praxe', 'appka'].includes(r.weight)) ? 1 : 0, 1, 0);
+  near('každé nese, co s tím', mixed.every((r) => r.action && r.action.length > 10) ? 1 : 0, 1, 0);
+
+  // doporučení z historie maxim
+  const day = (i) => isoDay(i);
+  const flatLog = Array.from({ length: 8 }, (_, i) => ({ lift: 'squat', date: day(i * 14), value: 200 + (i % 2 ? 1 : -1) }));
+  const tr = C.trendRecommendations(flatLog);
+  near('plochý trend se ohlásí jako stagnace', tr.some((r) => r.id === 'plateau-squat') ? 1 : 0, 1, 0);
+  near('krátká historie nic nehlásí', C.trendRecommendations(flatLog.slice(0, 3)).length, 0, 0);
+
+  // čísla ve větách musí být česky, s čárkou — texty jdou přímo na obrazovku
+  const czech = C.recommendations({
+    athlete: { ...a, e1rm: { squat: 220, bench: 100, deadlift: 260 } },
+    block: blk, e1rms: e1, today: '2026-03-20', entries: [],
+  }).find((r) => r.id === 'zaostava-bench');
+  near('procenta ve větě mají desetinnou čárku', /\d,\d/.test(czech.why) ? 1 : 0, 1, 0);
+  near('a nikde tam není desetinná tečka', /\d\.\d/.test(czech.why + czech.title) ? 0 : 1, 1, 0);
+
+  // signál stropu musí mít k dispozici i trend výkonu, jinak počítá ze dvou známek
+  const withTrend = C.recommendations({
+    athlete: a, block: blk, e1rms: e1, today: '2026-03-20',
+    entries: [
+      mk('2026-03-02', 'squat', 4, 5, 160, { actualRpe: 8 }),
+      mk('2026-03-09', 'squat', 5, 5, 160, { actualRpe: 9 }),
+    ],
+    e1rmLog: flatLog,
+    wellness: [{ date: '2026-03-20', sleep: 6, stress: 6, fatigue: 6, soreness: 6 }],
+  });
+  const mrv2 = withTrend.find((r) => r.id === 'mrv');
+  near('strop regenerace se ohlásí', mrv2 ? 1 : 0, 1, 0);
+  // bez historie pohody se třetí známka nedá spočítat — chybí, proti čemu ji měřit
+  near('bez historie pohody stojí signál na dvou známkách', /ze 2 nezávislých/.test(mrv2.why) ? 1 : 0, 1, 0);
+
+  // s historií pohody se zapojí i třetí známka
+  const withWellness = C.recommendations({
+    athlete: a, block: blk, e1rms: e1, today: '2026-03-20',
+    entries: [
+      mk('2026-03-02', 'squat', 4, 5, 160, { actualRpe: 8 }),
+      mk('2026-03-09', 'squat', 5, 5, 160, { actualRpe: 9 }),
+    ],
+    e1rmLog: flatLog,
+    wellness: [
+      { date: '2026-03-14', sleep: 2, stress: 2, fatigue: 3, soreness: 3 },
+      { date: '2026-03-16', sleep: 3, stress: 2, fatigue: 3, soreness: 3 },
+      { date: '2026-03-20', sleep: 7, stress: 7, fatigue: 7, soreness: 7 },
+    ],
+  }).find((r) => r.id === 'mrv');
+  near('s historií pohody stojí na třech známkách', /ze 3 nezávislých/.test(withWellness.why) ? 1 : 0, 1, 0);
+  near('trend výkonu je mezi nimi', /Výkon proti objemu/.test(withWellness.why) ? 1 : 0, 1, 0);
+  near('zkratka RPE zůstala velkými písmeny', /rpe/.test(withWellness.why) ? 0 : 1, 1, 0);
+}
+
 /* ---------------------------------------------------------------- */
 console.log(
   failed
