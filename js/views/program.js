@@ -1,8 +1,8 @@
-import { h, card, icon, num, fixed, tag, table, field, numInput, decimalInput, select, clear, toast, weekday, longDate } from '../ui.js';
+import { h, card, stat, icon, num, fixed, tag, table, field, numInput, decimalInput, select, segmented, clear, toast, weekday, longDate } from '../ui.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { BLOCK_TEMPLATES, LIFTS, COMP_LIFTS, RPE_STEPS, WEEK_SPLITS, DEFAULT_WEEKDAYS, WEEKDAY_LABELS } from '../data.js';
-import { W, U, Wu, liftDot, empty, rpeLabel } from './_util.js';
+import { BLOCK_TEMPLATES, LIFTS, COMP_LIFTS, RPE_STEPS, WEEK_SPLITS, DEFAULT_WEEKDAYS, WEEKDAY_LABELS, WENDLER_531, OTHER_TEMPLATES, ISSURIN_BLOCKS } from '../data.js';
+import { W, U, Wu, liftDot, empty, flagRow, rpeLabel } from './_util.js';
 
 const DAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
 
@@ -232,6 +232,8 @@ function build(root, render, nav) {
   const avgHardSets = an.weeks.length
     ? an.weeks.reduce((s, w) => s + (w.hardSetsPerLift ?? 0), 0) / an.weeks.length
     : 0;
+
+  root.append(templatesCard(a, render));
 
   root.append(card('Náhled zátěže', { eyebrow: 'Celý blok, než ho založíš', class: 'is-flush' },
     h('div', { style: { padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: '16px' } },
@@ -540,4 +542,116 @@ function toEntries(all, a) {
     weight: r.weight,
     actualRpe: null,
   }));
+}
+
+/* =========================================================
+   Hotové šablony
+   ========================================================= */
+const tplState = { open: '531', lift: 'squat', amrapReps: null };
+
+function templatesCard(a, render) {
+  if (!a) return h('div');
+
+  const tabs = [
+    { key: '531', label: '5/3/1' },
+    { key: 'issurin', label: 'Makrocyklus' },
+    { key: 'other', label: 'Další' },
+  ];
+
+  return card('Hotové šablony', {
+    eyebrow: 'Spočítané váhy podle maxim svěřence · plánovač výš tím nepřepisují',
+    action: segmented(tabs.map((t) => ({ value: t.key, label: t.label })), tplState.open,
+      (v) => { tplState.open = v; render(); }),
+  },
+    tplState.open === '531' ? wendlerBody(a, render)
+      : tplState.open === 'issurin' ? issurinBody()
+        : otherBody());
+}
+
+function wendlerBody(a, render) {
+  const lift = tplState.lift;
+  const w = C.wendler531(a.e1rm[lift], { unit: 'kg' });
+  if (!w) return h('p.note', 'Doplň maximum u tohohle cviku.');
+
+  const check = tplState.amrapReps == null ? null : C.wendlerCheck('5', tplState.amrapReps);
+
+  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } },
+    h('div.btn-row',
+      segmented(COMP_LIFTS.map((k) => ({ value: k, label: LIFTS[k].label })), lift,
+        (v) => { tplState.lift = v; render(); })),
+
+    h('div.grid.g3',
+      stat('Maximum', W(w.oneRm, 1), U()),
+      stat('Tréninkové maximum', W(w.tm, 1), `${U()} · ${w.tmPct} % z maxima`, 'hero'),
+      stat('Progrese za cyklus', `+${WENDLER_531.progressKg[lift]}`, `${U()} na tréninkovém maximu`)),
+
+    table(
+      ['Týden', ...w.weeks[0].sets.map((_, i) => ({ label: `Série ${i + 1}`, num: true }))],
+      w.weeks.map((wk) => ({
+        tone: wk.deload ? 'low' : null,
+        cells: [
+          h('b', wk.deload ? 'Deload' : `Týden ${wk.week} — „${wk.label}"`),
+          ...wk.sets.map((set) => ({
+            num: true,
+            value: h('span', h('span.mono', W(set.weight, 1)), h('span.faint', ` × ${set.reps}`),
+              h('br'), h('span.faint.mono', { style: { fontSize: '10.5px' } }, `${set.pct} %`)),
+          })),
+        ],
+      }))),
+
+    h('div.form-row',
+      field('Kolik opakování dala poslední série týdne 1?', numInput({
+        value: tplState.amrapReps ?? '', step: 1, min: 0, placeholder: `minimum je ${WENDLER_531.amrapFloor['5']}`,
+        oninput: (e) => { const v = e.target.value.trim(); tplState.amrapReps = v === '' ? null : Number(v); render(); },
+      }), 'Podle toho se pozná, jestli není tréninkové maximum nadsazené.')),
+
+    check && flagRow({ tone: check.short ? 'warn' : 'ok', text: check.note }),
+
+    h('p.note',
+      'Nejčastější chyba při zavádění 5/3/1: procenta se počítají z tréninkového maxima, tedy z 90 % '
+      + 'skutečného maxima — ne ze samotného maxima. Poslední série každého týdne se jede na co nejvíc '
+      + 'opakování, a právě z ní se pozná, jestli maximum sedí.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Wendler (2009). Trenérská praxe, ne výzkum. Progrese je fixní a lineární, takže pro pokročilé '
+      + 'trojbojaře bývá buď moc pomalá, nebo naopak neudržitelná — proto ta kontrola přes poslední sérii.'));
+}
+
+function issurinBody() {
+  const total = ISSURIN_BLOCKS.reduce((s, b) => s + b.weeks, 0);
+  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px' } },
+    table(
+      ['Fáze', { label: 'Týdnů', num: true }, { label: 'Intenzita', num: true }, 'Čím se vyznačuje'],
+      ISSURIN_BLOCKS.map((b, i) => ({
+        tone: i === ISSURIN_BLOCKS.length - 1 ? 'warn' : null,
+        cells: [
+          h('b', b.label),
+          { num: true, value: b.weeks },
+          { num: true, value: `${b.intensity[0]}–${b.intensity[1]} %` },
+          b.note,
+        ],
+      }))),
+    h('p.note',
+      `Celá kostra zabere ${total} týdnů. Od data závodu se počítá pozpátku: realizace končí závodem, `
+      + 'před ní transmutace, před ní akumulace. Kdo má do závodu míň času, zkracuje akumulaci, ne realizaci.'),
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Issurin, Block Periodization. Trenérská praxe s dlouhou tradicí, ne řízený pokus. Délky fází '
+      + 'jsou typické hodnoty pro silový trénink, ne předpis.'));
+}
+
+function otherBody() {
+  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+    ...Object.values(OTHER_TEMPLATES).map((t) => h('div.flag', {
+      dataset: { tone: t.warn && t.warn.startsWith('VYSOKÉ') ? 'bad' : 'low' },
+    },
+      icon(t.warn && t.warn.startsWith('VYSOKÉ') ? 'alert' : 'info', 16),
+      h('span',
+        h('b', t.label), h('br'),
+        t.note, h('br'),
+        h('span.faint', { style: { fontSize: '12px' } }, t.warn), h('br'),
+        h('span.faint', { style: { fontSize: '11.5px' } }, t.evidence)))),
+    h('p.note',
+      'Tyhle appka nepočítá do vah — jsou tu jako popis s tím, co o nich víme a nevíme. '
+      + 'Ani jedna nemá přímou evidenci a u denních maxim je riziko takové, že by je bylo nepoctivé '
+      + 'nabízet jako hotový plán.'));
 }

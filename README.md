@@ -28,7 +28,7 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 215 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 310 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
@@ -37,7 +37,10 @@ detekce plateau na E1RM, nakládání osy v kilech i librách, váhové kategori
 dvousložkový model kondice a únavy (proti analyticky spočítané sumě exponenciál),
 typická chyba a nejmenší prokazatelná změna, podíly cviků na součtu, věkové
 koeficienty, denní připravenost, signál stropu regenerace, tabulka rychlostí,
-odhad maxima z profilu zatížení a rychlosti i prahy poklesu.
+odhad maxima z profilu zatížení a rychlosti i prahy poklesu, interval spolehlivosti
+sklonu (proti nezávislé regresi), Theil–Sen, Mann–Kendall, detekce zlomu, modely
+taperu, časová osa závodního dne, percentily síly, 5/3/1, rozložení intenzit,
+index specifičnosti, tempo nárůstu a kalkulačka shazování váhy.
 
 ## Co to umí
 
@@ -50,14 +53,14 @@ odhad maxima z profilu zatížení a rychlosti i prahy poklesu.
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
 | **Rychlost** | Profil zatížení a rychlosti, odhad maxima z profilu, práh poklesu v sérii a bezpřístrojová obdoba z deníku |
 | **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučení podle skutečného výkonu |
-| **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, rozložení součtu proti elitě |
-| **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
-| **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
+| **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, interval spolehlivosti a robustní odhad trendu, detekce zlomu, poměr podnětu k únavě, rozložení součtu proti elitě |
+| **Analýza bloku** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
+| **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek; hotové šablony (5/3/1 s dopočítanými váhami, kostra makrocyklu, popis dalších) |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
-| **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík s časováním, projekce součtu |
-| **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, vliv tělesné váhy na koeficient |
+| **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík, časová osa podle pořadí v nominaci, ladění formy ve třech modelech, kalkulačka shazování váhy, projekce součtu |
+| **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, percentily relativní síly, vliv tělesné váhy na koeficient |
 | **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 39 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Vysvětlivky** | 50 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 
@@ -88,6 +91,17 @@ odhad maxima z profilu zatížení a rychlosti i prahy poklesu.
 | Věkový koeficient | body × koeficient(věk) | Foster 14–22, Glossbrennerem opravený McCulloch 41–80, USAPL 81–90 (varianta OpenPowerlifting) |
 | Odhad 1RM z rychlosti | 1RM = sklon · MVT + průsečík (regrese váhy na rychlosti) | MVT bench PMC5968962 a Sportsmith; tabulka rychlostí PMC9180020; rychlost při 1RM Helms a kol. (2017) |
 | Práh poklesu rychlosti | (nejrychlejší − poslední) ÷ nejrychlejší; pásma 10 / 25 / 40 % | Jukic a kol. (2023), Sports Medicine, doi 10.1007/s40279-022-01754-4 |
+| Interval spolehlivosti trendu | sklon ± t(0,95; n−2) · reziduální rozptyl ÷ √Sxx | standardní statistika nejmenších čtverců |
+| Robustní trend | Theil–Sen (medián párových sklonů), Mann–Kendall | standardní neparametrická statistika |
+| Detekce zlomu | CUSUM proti úrovni z první poloviny řady | statistické řízení jakosti |
+| Modely taperu | krokový 50 % / lineární / exponenciální, všechny na ~50 % objemu | Grgic a Mikulic (2017) pro praxi, Frontiers in Physiology 2021 pro rozdíl mezi modely |
+| Časování závodního dne | kolo = závodníci × minuta; rozcvička pozpátku od pokusu | trenérská praxe (EliteFTS a další), žádná recenzovaná data |
+| Percentily síly | násobek tělesné váhy proti 90. percentilu | J Sci Med Sport (2024), 809 986 startů — ověřen jen 90. percentil |
+| 5/3/1 | procenta z tréninkového maxima (90 % z 1RM) | Wendler (2009), trenérská praxe |
+| Rozložení intenzit | histogram zvedů po 5 % pásmech proti Sheikově normě | Sheikovy programy, trenérská praxe |
+| Index specifičnosti | tonáž soutěžních cviků ÷ celková tonáž | odvozeno z blokové periodizace |
+| Shazování váhy | (váha − limit) ÷ váha; pásma 2 / 5 % | Campbell a kol. (2025), přehledy pro pásmo 3–5 % |
+| Váhově závislý 1RM | w · (1 + (r−1)^0,85 ÷ (−2,55 + 4,58·ln w)) | Marzagão (2026), arXiv:2603.17495 — preprint, volitelný |
 | Pokusy | 91 % / 96,5 % / 102 % z E1RM | rozbor MS IPF 2012–2019 |
 | Úspěšnost pokusů | povedené ÷ platné pokusy × 100 | rozbor MS IPF 2016 (Stronger by Science) |
 | DOTS | součet × 500 ÷ polynom 4. stupně | ověřeno proti OpenPowerlifting |
@@ -123,6 +137,18 @@ ukazují podhodnocení o 9 až 15 % a autoři metodu pro tenhle cvik odmítají.
 Polynomiální rovnice pro převod rychlosti na procenta se nepočítají, protože
 se jejich koeficienty nepodařilo ověřit z původního zdroje — vymýšlet si je
 by bylo horší než je neuvádět.
+
+**Poměr podnětu k únavě.** V původní podobě je to subjektivní škála. Číselná
+verze v appce je moje konstrukce a nikdy nebyla proti ničemu ověřená — slouží
+k porovnání cviků jednoho člověka mezi sebou, ne k závěrům z absolutní hodnoty.
+
+**Percentily síly.** Ověřit se podařilo jen 90. percentil a jen pro dvě věkové
+skupiny. Appka proto neříká „jsi na 63. percentilu" — dopočítat zbytek tabulky
+interpolací a vydávat ho za data by byl výmysl.
+
+**Šablony.** Váhy appka počítá jen u 5/3/1. Texas, vlnové zatížení a denní
+maxima jsou tu jako popis: ani jedno nemá přímou evidenci a u denních maxim je
+riziko takové, že by bylo nepoctivé nabízet je jako hotový plán.
 
 **Rozložení součtu.** Studie ukazuje souvislost, ne příčinu. Závodníci uvnitř
 pásma mají v průměru vyšší IPF GL, ale z toho neplyne, že se součet zvedne tím,

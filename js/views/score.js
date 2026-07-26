@@ -2,8 +2,8 @@ import { h, card, stat, icon, num, fixed, tag, table, field, numInput, inputNum,
 import { lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { LIFTS, COMP_LIFTS, WEIGHT_CLASSES } from '../data.js';
-import { W, U, Wu } from './_util.js';
+import { LIFTS, COMP_LIFTS, WEIGHT_CLASSES, STRENGTH_P90 } from '../data.js';
+import { W, U, Wu, liftDot, flagRow } from './_util.js';
 
 const st = { sex: null, bw: null, equipment: null, lifts: null, age: null, source: 'athlete' };
 
@@ -102,6 +102,8 @@ function build(root, render) {
         h('div.stat', h('div.stat-label', 'Wilks'), h('div.stat-value', num(wk, 2)), h('div.faint.mono', { style: { fontSize: '11px' } }, 'původní, 1994'))),
       ageAdj && ageCoeffCard(ageAdj, d, wk))));
 
+  root.append(percentileCard(lifts, bw, sex, age));
+
   /* ---- vliv tělesné váhy ---- */
   // GL se pohybuje kolem 80, DOTS kolem 400 — na společné ose by obě křivky
   // vyšly ploché. Proto se kreslí procentní změna proti dnešní váze.
@@ -184,4 +186,54 @@ function neededTotal(targetGl, bw, sex, equipment) {
   const one = C.ipfGL(1000, bw, sex, equipment);
   if (!one) return 0;
   return C.round((targetGl / one) * 1000, 1);
+}
+
+/* =========================================================
+   Percentily relativní síly
+   ========================================================= */
+function percentileCard(lifts, bw, sex, age) {
+  const rows = COMP_LIFTS
+    .map((k) => C.strengthPercentile(k, lifts[k], bw, sex, age))
+    .filter(Boolean);
+  if (!rows.length) return h('div');
+
+  const above = rows.filter((r) => r.above).length;
+  const group = rows[0];
+
+  return card('Proti populaci', {
+    eyebrow: `90. percentil · ${group.groupLabel} · ${sex === 'f' ? 'ženy' : 'muži'} · násobky tělesné váhy`,
+    action: tag(`${above} ze 3 nad hranicí`, above === 3 ? 'ok' : above ? 'neutral' : 'warn'),
+  },
+    table(
+      ['Cvik',
+        { label: 'Násobek váhy', num: true },
+        { label: '90. percentil', num: true },
+        { label: `Chybí (${U()})`, num: true },
+        'Stav'],
+      rows.map((r) => ({
+        tone: r.above ? 'ok' : null,
+        cells: [
+          h('span', liftDot(r.lift), LIFTS[r.lift].label),
+          { num: true, value: `${fixed(r.ratio, 2)}×` },
+          { num: true, value: `${fixed(r.p90, 2)}×` },
+          { num: true, value: r.above ? '—' : W(r.gapKg, 1) },
+          tag(r.above ? 'v nejlepší desetině' : `${r.pctOfP90} % hranice`, r.above ? 'ok' : 'neutral'),
+        ],
+      }))),
+
+    group.approxAge && flagRow({
+      tone: 'low',
+      text: 'Ověřená data existují jen pro 18–35 let a pro věk nad 80. Pro tenhle věk se použila mladší skupina, '
+        + 'což je přísnější měřítko — skutečná hranice pro daný věk bude o něco níž.',
+    }),
+
+    h('p.note',
+      'Normativní data z 809 986 startů (J Sci Med Sport 2024). Je to jiný pohled než DOTS nebo IPF GL: '
+      + 'ty normalizují na tělesnou váhu koeficientem, tohle je prostý násobek. Pro laika je srozumitelnější, '
+      + 'na srovnání napříč kategoriemi je ale horší.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Appka ukazuje jen 90. percentil, protože jen ten se podařilo z placeného textu ověřit — a jen pro dvě '
+      + 'věkové skupiny. Dopočítat zbytek tabulky interpolací a vydávat ho za data by byl výmysl, takže se tu '
+      + 'nedozvíš „jsi na 63. percentilu", jen jestli jsi nad hranicí nejlepší desetiny, nebo pod ní.'));
 }

@@ -22,6 +22,7 @@ export const FORMULAS = {
   wathan: { label: 'Wathan', note: 'Exponenciální, sedí na vyšší opakování.' },
   mayhew: { label: 'Mayhew', note: 'Vyvinuto na benčpresu.' },
   landers: { label: 'Landers', note: 'Lineární, platí do ~10 opakování.' },
+  weightDependent: { label: 'Váhově závislá (2026)', note: 'Jediná počítá jinak s lehkou a těžkou činkou. Preprint, ne default.' },
 };
 
 /* ---------- Kotouče ---------- */
@@ -96,6 +97,188 @@ export const WILKS_COEF = {
 export const WEIGHT_CLASSES = {
   m: [53, 59, 66, 74, 83, 93, 105, 120, Infinity],
   f: [43, 47, 52, 57, 63, 69, 76, 84, Infinity],
+};
+
+/* ---------- Kritické hodnoty t-rozdělení ----------
+   Oboustranné, 95 %, pro stupně volnosti 1–30. Nad 30 se blíží 1,96.
+   Používá se u intervalu spolehlivosti sklonu trendu.                       */
+export const T95 = [
+  12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228,
+  2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086,
+  2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042,
+];
+
+/* ---------- Modely taperu ----------
+   Grgic a Mikulic (2017), 10 chorvatských šampionů open kategorie: délka
+   asi 2,5 týdne, pokles objemu 50,5 ± 11,7 %, intenzita udržená nebo zvýšená,
+   vrchol intenzity 8 ± 3 dny před závodem, poslední trénink 3–4 dny předem.
+
+   POZOR: je to dotazníkový průzkum na deseti lidech. Popisuje, co šampioni
+   dělají — ne důkaz, že je to nejlepší možné.
+
+   Řízený pokus (Frontiers in Physiology 2021, PMC8582352) porovnal krokový
+   a exponenciální taper. Dřep a bench vyšly srovnatelně, ale mrtvý tah
+   u krokového taperu nevzrostl vůbec (+1 %, nevýznamně) a u exponenciálního
+   o 8 %. Obě skupiny přitom měly stejnou celkovou práci.                    */
+export const TAPER_REFERENCE = {
+  lengthWeeks: 2.5,
+  volumeDrop: { mean: 50.5, sd: 11.7 },
+  intensityPeakDaysBefore: { mean: 8, sd: 3 },
+  lastSessionDaysBefore: [3, 4],
+  n: 10,
+};
+
+export const TAPER_MODELS = {
+  step: {
+    label: 'Krokový',
+    days: 7,
+    note: 'Jednorázový škrt objemu na začátku posledního týdne, pak už se nic nemění. Jednoduchý, u benče a krátkých vrcholení stačí.',
+    warn: 'V řízeném pokusu u něj mrtvý tah nevzrostl vůbec (+1 %, nevýznamně), zatímco u exponenciálního o 8 %.',
+    volumeAt: () => 0.5,
+  },
+  linear: {
+    label: 'Lineární',
+    days: 14,
+    note: 'Rovnoměrný pokles na polovinu. Z analytického řešení dvousložkového modelu vychází jako optimální tehdy, když kondice odeznívá exponenciálně.',
+    warn: null,
+    volumeAt: (d, days) => 1 - 0.5 * (d / days),
+  },
+  exponential: {
+    label: 'Exponenciální',
+    days: 21,
+    note: 'Rychlý pokles na začátku, pak doznívání k polovině objemu. V řízeném pokusu jako jediný zvedl i mrtvý tah.',
+    warn: null,
+    /* klesá k 50 %, ne k nule — obě větve pokusu skončily na zhruba polovině
+       výchozí práce, lišil se jen tvar cesty a délka */
+    volumeAt: (d, days) => 0.5 + 0.5 * Math.exp(-d / (days / 3)),
+  },
+};
+
+/* ---------- Časování závodního dne ----------
+   Všechno jsou konstanty z trenérské praxe (EliteFTS, PowerliftingTechnique),
+   žádná recenzovaná data. Tempo závodu reálně kolísá, proto jde minuta
+   na pokus v UI přenastavit.                                               */
+export const MEET_TIMING = {
+  minPerAttempt: 1,
+  restBetweenWarmups: 6,        // minut, na závodě se dělí náčiní
+  lastWarmupLiftersBefore: 10,  // poslední rozcvičovací série tolik závodníků před otvírákem
+  warmupRoomBefore: { squat: 30, bench: 20, deadlift: 20 },
+  flightSize: [10, 15],
+  lastWarmupMaxPct: 0.9,        // poslední rozcvička pod 90 % otvíráku
+};
+
+/* ---------- Srovnání úspěšnosti pokusů ----------
+   Rozbor mistrovství světa IPF. Čísla 91 a 96 % jsou POdmíněná úspěchem —
+   počítala se jen ze závodníků, kteří třetí pokus dali. Neznamenají tedy,
+   že otvírák na 91 % maximalizuje součet.                                  */
+export const ATTEMPT_BENCHMARK = {
+  winners: 8.46,
+  average: 6.66,
+  outOf: 9,
+  thirdAttemptSuccess: [0.5, 0.8],
+  secondAttemptSuccess: [0.75, 1.0],
+};
+
+/* ---------- Percentily relativní síly ----------
+   Normativní data z 809 986 startů (J Sci Med Sport 2024,
+   doi 10.1016/j.jsams.2024.06.008), testovaní na doping, klasika.
+
+   POZOR: z placeného textu se podařilo ověřit JEN 90. percentil a jen pro dvě
+   věkové skupiny. Zbytek tabulky appka nedopočítává — interpolovat chybějící
+   percentily a vydávat je za data by byl výmysl. Proto se tu neukazuje
+   „jsi na 63. percentilu", ale jen jestli je závodník nad hranicí, nebo pod ní. */
+export const STRENGTH_P90 = {
+  young: {
+    label: '18–35 let',
+    m: { squat: 2.83, bench: 1.95, deadlift: 3.25 },
+    f: { squat: 2.26, bench: 1.35, deadlift: 2.66 },
+  },
+  old: {
+    label: 'nad 80 let',
+    m: { squat: 1.72, bench: 1.31, deadlift: 2.30 },
+    f: { squat: 1.01, bench: 0.92, deadlift: 1.68 },
+  },
+};
+
+/* ---------- Sheikova distribuce objemu ----------
+   Normy z programů Sheika a rozborů PowerliftingToWin. Byly psané pro
+   sovětské a ruské profesionály, často farmakologicky podpořené — slepé
+   kopírování počtu zvedů je běžná chyba.                                   */
+export const SHEIKO_NORMS = {
+  mainBand: [70, 80],
+  repsPerSetMax: 5,
+  liftsPerLiftPerMonth: [300, 350],
+  frequency: { squat: 2, bench: 3, deadlift: 1 },
+};
+
+/* ---------- 5/3/1 (Wendler) ----------
+   Procenta se počítají z tréninkového maxima (90 % skutečného 1RM),
+   ne ze skutečného maxima.                                                 */
+export const WENDLER_531 = {
+  tmPct: 0.9,
+  weeks: [
+    { label: '5', sets: [[65, 5], [75, 5], [85, '5+']] },
+    { label: '3', sets: [[70, 3], [80, 3], [90, '3+']] },
+    { label: '5/3/1', sets: [[75, 5], [85, 3], [95, '1+']] },
+    { label: 'deload', sets: [[40, 5], [50, 5], [60, 5]] },
+  ],
+  progressKg: { squat: 5, deadlift: 5, bench: 2.5 },
+  /* očekávaná opakování na poslední sérii; míň znamená, že je maximum nadsazené */
+  amrapFloor: { '5': 5, '3': 3, '5/3/1': 1 },
+};
+
+/* ---------- Další šablony ----------
+   Texas i vlnové zatížení jsou trenérská praxe bez přímé evidence. Denní
+   maxima mají jen pilotní data a pro naprostou většinu naturálních závodníků
+   se nedoporučují — appka je nabízí, ale s varováním.                       */
+export const OTHER_TEMPLATES = {
+  texas: {
+    label: 'Texas Method',
+    note: 'Pondělí objem 5×5 na 90 % pondělního pětkového maxima, středa lehce 2×5 na 80 % pondělní váhy, pátek nové pětkové maximum.',
+    warn: 'Pro pokročilé trojbojaře je to už překonané — týdenní progrese nevydrží.',
+    evidence: 'Rippetoe a Baker, Practical Programming — trenérská praxe.',
+  },
+  wave: {
+    label: 'Vlnové zatížení',
+    note: 'Dvě vlny 3–2–1, druhá o 2,5 kg těžší než první.',
+    warn: 'Žádná přímá evidence. Ber to jako generátor sérií, ne jako doporučení.',
+    evidence: 'Trenérská praxe.',
+  },
+  dailymax: {
+    label: 'Denní maximum',
+    note: 'Každý trénink se jde na maximum dne, pak pár zpětných sérií.',
+    warn: 'VYSOKÉ RIZIKO. Jen pilotní data na malém vzorku. Pro drtivou většinu naturálních závodníků se nedoporučuje.',
+    evidence: 'Pilotní studie PMC6162635, malý vzorek.',
+  },
+};
+
+/* ---------- Bloková periodizace (Issurin) ---------- */
+export const ISSURIN_BLOCKS = [
+  { key: 'akumulace', label: 'Akumulace', weeks: 6, intensity: [60, 75], note: 'Vysoký objem, nízká až střední intenzita.' },
+  { key: 'transmutace', label: 'Transmutace', weeks: 6, intensity: [75, 87.5], note: 'Tři až šest opakování, delší pauzy.' },
+  { key: 'realizace', label: 'Realizace', weeks: 4, intensity: [85, 100], note: 'Nízký objem, nejvyšší intenzita, taper.' },
+];
+
+/* ---------- Shazování váhy ----------
+   Campbell a kol. (2025): shazuje 97 % trojbojařů, typicky 4,2 % hmotnosti.
+   Relativně bezpečné pásmo z přehledů je 3–5 %. Řízený pokus (PMC12392435)
+   ukázal, že při zhruba pěti procentech a krátké regeneraci se maximální síla
+   udrží — ale délka mezi vážením a startem je zásadní proměnná a liší se
+   federaci od federace.                                                    */
+export const CUT_BANDS = [
+  { max: 2, label: 'Nízké riziko', tone: 'ok', note: 'Zvládne se dietou a vyprázdněním střev, bez akutní dehydratace.' },
+  { max: 5, label: 'Střední riziko', tone: 'warn', note: 'Uvnitř pásma, které přehledy považují za relativně bezpečné. Regenerace po vážení je zásadní.' },
+  { max: 999, label: 'Vysoké riziko', tone: 'bad', note: 'Nad 5 % tělesné hmotnosti. Mimo doporučené pásmo — reálné riziko poklesu výkonu i zdravotních potíží.' },
+];
+
+export const CUT_FACTS = {
+  prevalence: 97,
+  typicalPct: 4.2,
+  regional: 5.5,
+  international: 3.3,
+  womenMax: 6.7,
+  menMax: 5.3,
+  negativePsych: 70,
 };
 
 /* ---------- Rychlost tyče (VBT) ----------

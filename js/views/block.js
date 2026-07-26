@@ -2,7 +2,7 @@ import { h, card, stat, icon, num, fixed, pct, bigNum, tag, table, field, numInp
 import { stackedBars, heatmap, splitBar, lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { LIFTS, COMP_LIFTS, PRILEPIN, SET_LANDMARKS } from '../data.js';
+import { LIFTS, COMP_LIFTS, PRILEPIN, SET_LANDMARKS, SHEIKO_NORMS, ISSURIN_BLOCKS } from '../data.js';
 import { W, U, Wu, liftDot, liftName, flagRow, empty } from './_util.js';
 
 const DAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
@@ -177,6 +177,8 @@ function build(root, render, nav) {
   },
     h('div', { style: { padding: '0 24px 24px', overflowX: 'auto' } },
       heatmap(cells, { weeks: an.weeks.map((w) => w.week), days: DAYS }))));
+
+  root.append(h('div.grid.g-side', histogramCard(entries, blkE1rm), specificityCard(entries, an)));
 
   /* ---- objem + zátěž ---- */
   root.append(h('div.grid.g2',
@@ -472,4 +474,90 @@ function importCsv(blk, render) {
   document.body.append(input);
   input.click();
   input.remove();
+}
+
+/* =========================================================
+   Rozložení zvedů po intenzitních pásmech
+   ========================================================= */
+function histogramCard(entries, e1rms) {
+  const hist = C.intensityHistogram(entries, e1rms);
+  if (!hist) {
+    return card('Rozložení intenzit', { eyebrow: 'Po pětiprocentních pásmech' },
+      h('p.note', 'Zatím není z čeho počítat — chybí cviky se změřeným maximem.'));
+  }
+
+  const max = Math.max(...hist.rows.map((r) => r.reps), 1);
+  const inBand = (from) => from >= SHEIKO_NORMS.mainBand[0] && from < SHEIKO_NORMS.mainBand[1];
+
+  return card('Rozložení intenzit', {
+    eyebrow: `${hist.total} zvedů po pětiprocentních pásmech`,
+    action: tag(`${fixed(hist.mainBandPct, 0)} % v pásmu 70–80 %`, hist.mainBandPct >= 40 ? 'ok' : 'neutral'),
+  },
+    h('div', { style: { display: 'flex', flexDirection: 'column', gap: '3px' } },
+      ...hist.rows.map((r) => h('div', {
+        style: { display: 'grid', gridTemplateColumns: '58px minmax(0,1fr) 76px', alignItems: 'center', gap: '8px' },
+      },
+        h('span.mono.faint', { style: { fontSize: '11px' } }, `${r.from}–${r.to} %`),
+        h('div', { style: { height: '14px', background: 'var(--surface-2)', borderRadius: '3px', overflow: 'hidden' } },
+          h('div', {
+            style: {
+              height: '100%', width: `${(r.reps / max) * 100}%`, borderRadius: '3px',
+              background: inBand(r.from) ? 'var(--series-1)' : 'var(--series-other)',
+            },
+          })),
+        h('span.mono', { style: { fontSize: '11.5px', textAlign: 'right' } }, `${r.reps} · ${fixed(r.pct, 0)} %`)))),
+
+    h('p.note',
+      `Prilepinova tabulka rozdělí práci do čtyř hrubých zón, tohle je jemnější pohled na totéž. `
+      + `Modře je pásmo ${SHEIKO_NORMS.mainBand[0]}–${SHEIKO_NORMS.mainBand[1]} %, do kterého Sheiko dával většinu práce. `
+      + `Tady v něm leží ${fixed(hist.mainBandPct, 0)} % zvedů.`),
+
+    hist.overFivePct > 25 && flagRow({
+      tone: 'low',
+      text: `${fixed(hist.overFivePct, 0)} % zvedů padlo v sériích delších než pět opakování. `
+        + 'U Sheika to bylo výjimečně — jeho programy stavěly na kratších sériích s vyšší frekvencí.',
+    }),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Sheikovy normy byly psané pro sovětské a ruské profesionály, často farmakologicky podpořené. '
+      + 'Slepé kopírování počtu zvedů je běžná chyba — tohle je srovnání tvaru rozložení, ne cíl.'));
+}
+
+/* =========================================================
+   Specifičnost a tempo nárůstu
+   ========================================================= */
+function specificityCard(entries, an) {
+  const spec = C.specificityIndex(entries);
+  const ramp = C.rampRate(an.weeks);
+  const phase = ISSURIN_BLOCKS.find((b) => b.key === spec?.phase);
+
+  return card('Specifičnost a tempo', {
+    eyebrow: 'Kolik práce jde na soutěžní cviky a jak rychle roste objem',
+    action: spec && tag(phase ? phase.label : spec.phase, spec.pct >= 80 ? 'ok' : 'neutral'),
+  },
+    spec
+      ? h('div.grid.g2',
+          stat('Specifičnost', fixed(spec.pct, 0), '% tonáže na soutěžních cvicích'),
+          stat('Odpovídá fázi', phase ? phase.label : '—', phase ? `${phase.intensity[0]}–${phase.intensity[1]} % 1RM` : ''))
+      : h('p.note', 'Chybí data.'),
+
+    table(
+      ['Týden', { label: `Tonáž (${U()})`, num: true }, { label: 'Změna', num: true }],
+      ramp.map((r) => ({
+        tone: r.change != null && Math.abs(r.change) > 30 ? 'warn' : null,
+        cells: [
+          `Týden ${r.week}`,
+          { num: true, value: bigNum(S.toDisplay(r.tonnage)) },
+          { num: true, value: r.change == null ? '—' : h('span', { style: { color: r.change > 30 ? 'var(--warn)' : r.change < -30 ? 'var(--info)' : 'var(--ink-2)' } }, `${r.change > 0 ? '+' : ''}${fixed(r.change, 0)} %`) },
+        ],
+      }))),
+
+    h('p.note',
+      'Bloková periodizace čeká, že specifičnost k závodu poroste: v akumulaci se dělá hodně variant '
+      + 'a doplňků, v realizaci skoro jen soutěžní cviky v soutěžním provedení.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Tempo nárůstu je tu jako informace, ne jako varování. Pravidlo „nepřidávej víc než 10 % týdně" '
+      + 'se u běžců opakovaně nepotvrdilo a přenášet ho na silový trénink není na čem postavit — '
+      + 'skok objemu mezi týdny hlídá appka jinde, přes tvrdé série a odchylku RPE.'));
 }
