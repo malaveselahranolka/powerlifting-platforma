@@ -90,9 +90,10 @@ function build(root, render, nav) {
   // maxima platná v době bloku, ne dnešní — jinak by starý blok po zlepšení
   // zpětně vypadal lehčí, než byl
   const blkE1rm = S.blockE1rm(blk, a);
-  const an = C.analyzeBlock(entries, blkE1rm, blk.start);
-  const hs = C.hardSets(entries, blkE1rm, blk.start);
-  const hx = C.heavyExposures(entries, blkE1rm, blk.start);
+  const variants = S.athleteVariants(a);
+  const an = C.analyzeBlock(entries, blkE1rm, blk.start, variants);
+  const hs = C.hardSets(entries, blkE1rm, blk.start, variants);
+  const hx = C.heavyExposures(entries, blkE1rm, blk.start, variants);
   // průměr tvrdých sérií za týden pro jeden konkrétní cvik — týdny bez té
   // série se počítají jako nula, jinak by cvik trénovaný jen občas vypadal nafouknutě
   const weekSpan = Math.max(1, an.weeks.length);
@@ -480,7 +481,7 @@ function importCsv(blk, render) {
    Rozložení zvedů po intenzitních pásmech
    ========================================================= */
 function histogramCard(entries, e1rms) {
-  const hist = C.intensityHistogram(entries, e1rms);
+  const hist = C.intensityHistogram(entries, e1rms, { variants: S.athleteVariants() });
   if (!hist) {
     return card('Rozložení intenzit', { eyebrow: 'Po pětiprocentních pásmech' },
       h('p.note', 'Zatím není z čeho počítat — chybí cviky se změřeným maximem.'));

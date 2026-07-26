@@ -18,7 +18,7 @@ function build(view, render, nav) {
 
   const blk = S.block();
   const entries = blk ? S.blockEntries(blk.id) : [];
-  const analysis = C.analyzeBlock(entries, S.blockE1rm(blk, a), blk?.start);
+  const analysis = C.analyzeBlock(entries, S.blockE1rm(blk, a), blk?.start, S.athleteVariants(a));
   const creep = blk ? C.rpeCreep(entries, blk.start) : [];
   const lastCreep = creep.at(-1);
   const cg = lastCreep ? C.gradeCreep(lastCreep.avg) : null;

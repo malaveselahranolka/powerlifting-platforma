@@ -315,6 +315,27 @@ export function blockE1rm(blk, a = athlete()) {
   return snap;
 }
 
+/**
+ * Přepsané koeficienty variant u jednoho svěřence.
+ *
+ * Výchozí hodnoty v datech jsou trenérská konvence, ne měření — u konkrétního
+ * člověka se liší podle stavby a techniky. Kdo si pauzovaný dřep jednou
+ * otestuje, přepíše si tady procento a od té chvíle appka počítá jeho číslo.
+ * Co se nepřepíše, zůstává na výchozí hodnotě.
+ */
+export const athleteVariants = (a = athlete()) => a?.variants ?? {};
+
+/** Uloží nebo smaže (pct = null) jeden koeficient varianty. */
+export function setVariantPct(athleteId, variant, pct) {
+  commit((s) => {
+    const a = s.athletes.find((x) => x.id === athleteId);
+    if (!a) return;
+    a.variants ??= {};
+    if (pct == null) delete a.variants[variant];
+    else a.variants[variant] = pct;
+  });
+}
+
 /** Přepne svěřence a s ním i aktivní blok. */
 export function selectAthlete(id) {
   commit((s) => {

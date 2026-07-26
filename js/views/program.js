@@ -2,7 +2,7 @@ import { h, card, stat, icon, num, fixed, tag, table, field, numInput, decimalIn
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { BLOCK_TEMPLATES, LIFTS, COMP_LIFTS, RPE_STEPS, WEEK_SPLITS, DEFAULT_WEEKDAYS, WEEKDAY_LABELS, WENDLER_531, OTHER_TEMPLATES, ISSURIN_BLOCKS } from '../data.js';
-import { W, U, Wu, liftDot, empty, flagRow, rpeLabel } from './_util.js';
+import { W, U, Wu, liftDot, empty, flagRow, rpeLabel, variantOptions } from './_util.js';
 
 const DAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
 
@@ -59,26 +59,38 @@ export function programView(nav) {
    Model řádku
    ========================================================= */
 
+/**
+ * Maximum, proti kterému se řádek počítá.
+ *
+ * U soutěžního cviku je to jeho 1RM. U varianty se odvodí koeficientem —
+ * jinak by pauzovaný dřep na 88 % vypadal jako 88 % soutěžního dřepu,
+ * což je proti jeho vlastnímu maximu skoro sto procent.
+ */
+const rowMax = (lift, variant, a) =>
+  C.entryE1rm({ lift, variant: variant || null }, a.e1rm ?? {}, S.athleteVariants(a));
+
 /** Váha z procent a maxima. U doplňků maximum neznáme, tam se zadává ručně. */
-const weightFromPct = (lift, pct, a) =>
-  lift === 'accessory' ? 40 : C.roundToBar(((a.e1rm[lift] ?? 0) * pct) / 100, { unit: 'kg' });
+const weightFromPct = (lift, variant, pct, a) =>
+  lift === 'accessory' ? 40 : C.roundToBar((rowMax(lift, variant, a) * pct) / 100, { unit: 'kg' });
 
 function newRow(week, day, lift, a, o = {}) {
   const reps = o.reps ?? 5;
   const rpe = o.rpe ?? 8;
   const pct = o.pct ?? C.rpeToPct(reps, rpe) ?? 80;
+  const variant = o.variant ?? null;
   return {
     id: S.uid(),
     week,
     day,
     lift,
+    variant,
     name: o.name ?? null,
     sets: o.sets ?? 3,
     reps,
     rpe,
     pct,
     by: 'rpe',
-    weight: o.weight ?? weightFromPct(lift, pct, a),
+    weight: o.weight ?? weightFromPct(lift, variant, pct, a),
   };
 }
 
@@ -227,7 +239,7 @@ function build(root, render, nav) {
 
   /* ---- náhled ---- */
   const preview = toEntries(all, a);
-  const an = C.analyzeBlock(preview, a.e1rm, st.start);
+  const an = C.analyzeBlock(preview, a.e1rm, st.start, S.athleteVariants(a));
   const peak = Math.max(0, ...an.weeks.map((w) => w.peakIntensity ?? 0));
   const avgHardSets = an.weeks.length
     ? an.weeks.reduce((s, w) => s + (w.hardSetsPerLift ?? 0), 0) / an.weeks.length
@@ -441,7 +453,7 @@ function planRow(r, all, a, render) {
     r.rpe = Math.min(10, Math.max(5, Math.round(v * 2) / 2));
     r.by = 'rpe';
     r.pct = C.rpeToPct(r.reps, r.rpe) ?? r.pct;
-    if (!isAcc) r.weight = weightFromPct(r.lift, r.pct, a);
+    if (!isAcc) r.weight = weightFromPct(r.lift, r.variant, r.pct, a);
     refresh({ skip: 'rpe' });
     persistDraft(a);
   });
@@ -453,7 +465,7 @@ function planRow(r, all, a, render) {
       r.pct = v;
       r.by = 'pct';
       r.rpe = C.rpeFromPct(r.reps, r.pct);
-      r.weight = weightFromPct(r.lift, r.pct, a);
+      r.weight = weightFromPct(r.lift, r.variant, r.pct, a);
       refresh({ skip: 'pct' });
       persistDraft(a);
     });
@@ -465,7 +477,7 @@ function planRow(r, all, a, render) {
     if (!Number.isFinite(v) || v < 0) return;
     r.weight = S.fromDisplay(v);
     r.by = 'weight';
-    const e1 = a.e1rm[r.lift] ?? 0;
+    const e1 = rowMax(r.lift, r.variant, a);
     if (!isAcc && e1 > 0) {
       r.pct = (r.weight / e1) * 100;
       r.rpe = C.rpeFromPct(r.reps, r.pct);
@@ -484,7 +496,9 @@ function planRow(r, all, a, render) {
           value: r.lift, class: 'inline-input inline-select',
           onchange: (e) => {
             r.lift = e.target.value;
+            r.variant = null;
             if (r.lift !== 'accessory') r.name = null;
+            r.weight = weightFromPct(r.lift, r.variant, r.pct, a);
             persistDraft(a);
             render();
           },
@@ -492,6 +506,20 @@ function planRow(r, all, a, render) {
         isAcc && h('input.inline-input.plan-name', {
           value: r.name ?? '', placeholder: 'název cviku',
           oninput: (e) => { r.name = e.target.value || null; persistDraft(a); },
+        }),
+        // varianta se počítá proti svému odvozenému maximu, ne proti soutěžnímu
+        !isAcc && variantOptions(r.lift).length > 1 && select(variantOptions(r.lift), {
+          value: r.variant ?? '', class: 'inline-input inline-select plan-variant',
+          // soutěžní provedení je výchozí stav — nemá přetahovat pozornost
+          // ze samotného cviku, na kterém řádek stojí
+          dataset: { default: String(!r.variant) },
+          title: 'Provedení cviku — varianta se počítá proti odvozenému maximu',
+          onchange: (e) => {
+            r.variant = e.target.value || null;
+            r.weight = weightFromPct(r.lift, r.variant, r.pct, a);
+            persistDraft(a);
+            render();
+          },
         }))),
 
     h('td.num', numInput({
@@ -506,7 +534,7 @@ function planRow(r, all, a, render) {
         // opakování mění vztah mezi RPE a procenty — dopočítá se to, co nevede
         if (r.by === 'rpe') {
           r.pct = C.rpeToPct(r.reps, r.rpe) ?? r.pct;
-          if (!isAcc) r.weight = weightFromPct(r.lift, r.pct, a);
+          if (!isAcc) r.weight = weightFromPct(r.lift, r.variant, r.pct, a);
         } else {
           r.rpe = C.rpeFromPct(r.reps, r.pct);
         }
@@ -535,6 +563,7 @@ function toEntries(all, a) {
   return all.map((r) => ({
     date: S.iso(S.addDays(st.start, (r.week - 1) * 7 + r.day)),
     lift: r.lift,
+    variant: r.variant ?? null,
     name: r.lift === 'accessory' ? (r.name || 'Doplňkový cvik') : null,
     sets: r.sets,
     reps: r.reps,

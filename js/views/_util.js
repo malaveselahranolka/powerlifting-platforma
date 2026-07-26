@@ -2,7 +2,7 @@
 
 import { h, num, icon } from '../ui.js';
 import * as S from '../store.js';
-import { LIFTS } from '../data.js';
+import { LIFTS, VARIANTS } from '../data.js';
 
 /** Jednotka k zobrazení. */
 export const U = () => S.state.unit;
@@ -17,7 +17,18 @@ export const Wu = (kgVal, d = 1) => `${W(kgVal, d)} ${U()}`;
 export const liftDot = (lift) =>
   h('i.lift-dot', { style: { background: LIFTS[lift]?.color ?? 'var(--steel)' } });
 
-export const liftName = (e) => (e.lift === 'accessory' ? e.name || 'Doplňkový cvik' : LIFTS[e.lift]?.label ?? e.lift);
+export const liftName = (e) => {
+  if (e.variant && VARIANTS[e.variant]) return VARIANTS[e.variant].label;
+  return e.lift === 'accessory' ? e.name || 'Doplňkový cvik' : LIFTS[e.lift]?.label ?? e.lift;
+};
+
+/** Varianty patřící k soutěžnímu cviku, jako volby do select. */
+export const variantOptions = (lift) => [
+  { value: '', label: 'Soutěžní provedení' },
+  ...Object.entries(VARIANTS)
+    .filter(([, v]) => v.base === lift)
+    .map(([k, v]) => ({ value: k, label: v.label })),
+];
 
 export const initials = (name) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();

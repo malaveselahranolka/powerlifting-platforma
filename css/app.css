@@ -1361,7 +1361,24 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 .plan-table th:not(:first-child),
 .plan-table td:not(:first-child) { width: 1%; white-space: nowrap; }
 
-.plan-lift { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 190px; }
+/* Cvik a jeho provedení se zalomí pod sebe, jakmile se do řádku nevejdou —
+   varianta patří ke cviku, ne do vlastního sloupce. */
+.plan-lift { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 190px; flex-wrap: wrap; }
+
+/* varianta je podřízená volba: menší a tišší než výběr cviku nad ní */
+.plan-variant {
+  font-size: 11.5px;
+  color: var(--ink-2);
+  min-width: 0;
+  flex: 1 1 130px;
+  margin-left: 16px;
+}
+
+/* Soutěžní provedení je výchozí stav na většině řádků. Kdyby se psalo stejně
+   výrazně jako jméno cviku, zaplní tabulku opakováním téhož slova. */
+.plan-variant[data-default='true'] { color: var(--ink-3); }
+.plan-variant[data-default='true']:hover,
+.plan-variant:focus { color: var(--ink); }
 
 .inline-select {
   text-align: left;

@@ -4,7 +4,7 @@ import {
   RPE_SEQ, RPE_STEPS, PRILEPIN,
   DOTS_COEF, IPF_GL_COEF, WILKS_COEF, WEIGHT_CLASSES,
   PLATES_KG, PLATES_LB, SBD_RATIOS, AGE_COEFF, AGE_COEFF_SOLID,
-  LOAD_VELOCITY, MVT, VELOCITY_LOSS, T95,
+  LOAD_VELOCITY, MVT, VELOCITY_LOSS, T95, VARIANTS, RPE_SD_BY_PCT,
   TAPER_MODELS, TAPER_REFERENCE, MEET_TIMING, ATTEMPT_BENCHMARK,
   STRENGTH_P90, SHEIKO_NORMS, WENDLER_531, CUT_BANDS, CUT_FACTS,
 } from './data.js';
@@ -196,6 +196,27 @@ export const liftedWeight = (e) => e.actualWeight ?? e.weight;
 /** Opakování, která se doopravdy udělala. */
 export const liftedReps = (e) => e.actualReps ?? e.reps;
 
+/**
+ * Maximum platné pro tuhle konkrétní položku.
+ *
+ * U soutěžního cviku je to prostě jeho maximum. U varianty se odvodí
+ * procentem — pauzovaný dřep se netestuje, ale ví se, že jede kolem 88 %
+ * soutěžního. Bez tohohle kroku varianta nemá intenzitu vůbec a vypadne
+ * ze všeho, co se od intenzity odvíjí.
+ *
+ * `variants` je přepis koeficientů u konkrétního závodníka; co v něm není,
+ * se vezme z výchozí tabulky.
+ */
+export function entryE1rm(e, e1rms = {}, variants = {}) {
+  const v = e.variant;
+  if (!v) return e1rms[e.lift] ?? 0;
+  const def = VARIANTS[v];
+  const base = e1rms[def?.base ?? e.lift] ?? 0;
+  if (!(base > 0)) return 0;
+  const pct = variants[v] ?? def?.pct;
+  return pct > 0 ? round(base * pct, 1) : base;
+}
+
 /** Tonáž jedné položky = série × opakování × váha. */
 export const tonnage = (e) => e.sets * liftedReps(e) * liftedWeight(e);
 
@@ -366,7 +387,7 @@ export function gradeAcwr(r) {
  * Tonáž počítá všechno včetně doplňků. Intenzita, INOL a Prilepinovy zóny
  * dávají smysl jen tam, kde známe 1RM — doplňkové cviky se do nich nepletou.
  */
-export function analyzeBlock(entries, e1rms, startDate) {
+export function analyzeBlock(entries, e1rms, startDate, variants = {}) {
   const weekOf = (d) => (startDate ? Math.floor(daysBetween(startDate, d) / 7) + 1 : 1);
 
   const weeks = new Map();
@@ -375,7 +396,7 @@ export function analyzeBlock(entries, e1rms, startDate) {
 
   for (const e of entries) {
     const w = Math.max(1, weekOf(e.date));
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     const measured = e1 > 0;
     const int = measured ? intensity(e, e1) : 0;
     const ton = tonnage(e);
@@ -635,6 +656,194 @@ export function weeklyAdjustment(entries, lift, week, startDate) {
 }
 
 /**
+ * Jak nespolehlivé je nahlášené RPE při dané relativní intenzitě.
+ *
+ * Zourdos a kol. (2016) naměřili u zkušených dřepařů směrodatnou odchylku
+ * 0,32 bodu při 100 % maxima, ale 1,18 při 60 %. Mezi tabulkovými body se
+ * interpoluje lineárně, za krajními se drží krajní hodnota.
+ */
+export function rpeSd(pct) {
+  if (!(pct > 0)) return RPE_SD_BY_PCT[0][1];
+  const t = RPE_SD_BY_PCT;
+  if (pct <= t[0][0]) return t[0][1];
+  if (pct >= t.at(-1)[0]) return t.at(-1)[1];
+  for (let i = 0; i < t.length - 1; i++) {
+    const [p0, s0] = t[i];
+    const [p1, s1] = t[i + 1];
+    if (pct >= p0 && pct <= p1) return s0 + ((s1 - s0) * (pct - p0)) / (p1 - p0);
+  }
+  return t.at(-1)[1];
+}
+
+/**
+ * Odhad maxima ze série i s tím, jak přesný ten odhad je.
+ *
+ * Nejistota se nebere odhadem, ale spočítá se: RPE se posune o svou
+ * směrodatnou odchylku nahoru a dolů a z rozdílu vyjde, o kolik kilogramů
+ * se odhad rozhoupe. Relativní intenzita, podle které se ta odchylka hledá,
+ * plyne přímo z tabulky (opakování × RPE → procento), takže k tomu není
+ * potřeba znát maximum — jinak by výpočet byl kruhový.
+ */
+export function setE1rmWithError(e) {
+  const rpe = e.actualRpe ?? e.rpe;
+  const w = liftedWeight(e);
+  const r = liftedReps(e);
+  if (!(w > 0) || !(r > 0) || !(rpe > 0)) return null;
+
+  const value = E1RM.rpe(w, r, rpe);
+  if (value == null) return null;
+
+  const pct = rpeToPct(r, rpe);
+  const sd = rpeSd(pct);
+  const hi = E1RM.rpe(w, r, Math.max(1, rpe - sd));
+  const lo = E1RM.rpe(w, r, Math.min(10, rpe + sd));
+  // krajní kombinace vypadnou z tabulky — pak zbyde aspoň polovina rozpětí
+  const spread = hi != null && lo != null ? Math.abs(hi - lo) / 2 : Math.abs(value) * 0.05;
+
+  return {
+    value: round(value, 1),
+    sd: round(Math.max(spread, 0.5), 2),
+    pct: round(pct, 1),
+    rpe,
+    reps: r,
+  };
+}
+
+/**
+ * Maximum dne z několika sérií — vážené podle spolehlivosti, ne to nejvyšší.
+ *
+ * Dřív se z jednoho dne brala nejlepší série. Maximum z několika zašuměných
+ * odhadů je ale systematicky nadhodnocené: je to extrémní hodnota, ne odhad
+ * středu. Čím víc sérií se zapíše, tím vyšší číslo z toho vyjde, i když se
+ * síla nezměnila vůbec.
+ *
+ * Správně se odhady váží obráceně k jejich rozptylu — trojka na RPE 9 nese
+ * mnohem víc informace než desítka na RPE 6 a má tomu odpovídat její váha:
+ *
+ *   maximum = Σ(hodnota ÷ σ²) ÷ Σ(1 ÷ σ²)
+ *   chyba   = 1 ÷ √Σ(1 ÷ σ²)
+ *
+ * Vedle váženého odhadu se vrací i to nejvyšší, aby šlo vidět, o kolik se
+ * ta dvě čísla liší.
+ */
+export function sessionE1rm(entries) {
+  const est = entries.map(setE1rmWithError).filter(Boolean);
+  if (!est.length) return null;
+
+  let wSum = 0;
+  let vSum = 0;
+  for (const x of est) {
+    const w = 1 / x.sd ** 2;
+    wSum += w;
+    vSum += x.value * w;
+  }
+  if (!(wSum > 0)) return null;
+
+  const weighted = vSum / wSum;
+  const best = Math.max(...est.map((x) => x.value));
+  return {
+    n: est.length,
+    weighted: round(weighted, 1),
+    se: round(1 / Math.sqrt(wSum), 2),
+    best: round(best, 1),
+    // o kolik by nejlepší série nadhodnotila proti váženému odhadu
+    bias: round(best - weighted, 1),
+    sets: est,
+  };
+}
+
+/* =========================================================
+   Relativní intenzita k dennímu maximu
+   ========================================================= */
+
+/**
+ * Procenta z toho, co závodník zvládal *ten den* — ne z maxima na papíře.
+ *
+ * Tohle je vlastní jádro metody RTS a appka ho dosud nepoužívala: počítala
+ * všechno jako procento z 1RM. Rozdíl je podstatný. Naplánovaných 170 kg je
+ * pořád 85 % z dvousetkilového maxima, ať je člověk čerstvý nebo rozbitý.
+ * Proti dennímu maximu to ale ve špatný den může být 92 % — a právě proto
+ * ta série jede na RPE 9 místo 8.
+ *
+ * Absolutní intenzita říká, co bylo v plánu. Relativní říká, co to pro
+ * závodníka toho dne doopravdy znamenalo. Rozdíl mezi nimi je jméno pro to,
+ * čemu se říká „špatný den".
+ */
+export function relativeIntensity(entries, e1rms = {}, variants = {}) {
+  const byKey = new Map();
+  for (const e of entries) {
+    if (e.actualRpe == null) continue;
+    const key = `${e.date}|${e.lift}|${e.variant ?? ''}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(e);
+  }
+
+  const out = [];
+  for (const [key, group] of byKey) {
+    const day = sessionE1rm(group);
+    if (!day) continue;
+    const [date, lift, variant] = key.split('|');
+    const planned = entryE1rm(group[0], e1rms, variants);
+
+    for (const e of group) {
+      const w = liftedWeight(e);
+      out.push({
+        date,
+        lift,
+        variant: variant || null,
+        weight: round(w, 2),
+        dayMax: day.weighted,
+        absolute: planned > 0 ? round((w / planned) * 100, 1) : null,
+        relative: round((w / day.weighted) * 100, 1),
+      });
+    }
+  }
+
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Souhrn po dnech: o kolik se relativní intenzita rozešla s absolutní.
+ *
+ * Kladný rozdíl znamená, že série byly ten den těžší, než plán čekal —
+ * denní maximum bylo pod papírovým. Záporný, že šlo o dobrý den.
+ *
+ * Procenta se přes cviky průměrovat dají, protože obě jsou normalizovaná —
+ * 85 % dřepu a 85 % benče znamenají totéž. Denní maximum v kilech ale ne:
+ * ve dni, kde se dřepalo i benčovalo, žádné jedno „maximum dne" neexistuje.
+ * Proto se `dayMax` vrací jen tehdy, když měl den jediný cvik, a jinak je
+ * null — lepší nic, než číslo, které patří jinam.
+ */
+export function intensityGap(entries, e1rms = {}, variants = {}) {
+  const rows = relativeIntensity(entries, e1rms, variants).filter((r) => r.absolute != null);
+  const byDay = new Map();
+  for (const r of rows) {
+    if (!byDay.has(r.date)) byDay.set(r.date, { date: r.date, absSum: 0, relSum: 0, n: 0, maxes: new Map() });
+    const d = byDay.get(r.date);
+    d.absSum += r.absolute;
+    d.relSum += r.relative;
+    d.n++;
+    d.maxes.set(`${r.lift}|${r.variant ?? ''}`, r.dayMax);
+  }
+  return [...byDay.values()].map((d) => ({
+    date: d.date,
+    lifts: d.maxes.size,
+    dayMax: d.maxes.size === 1 ? [...d.maxes.values()][0] : null,
+    absolute: round(d.absSum / d.n, 1),
+    relative: round(d.relSum / d.n, 1),
+    gap: round((d.relSum - d.absSum) / d.n, 1),
+  }));
+}
+
+export function gradeIntensityGap(gap) {
+  if (gap == null) return { label: 'Bez dat', tone: 'low', note: 'Potřeba zapsané skutečné RPE.' };
+  if (gap >= 5) return { label: 'Špatný den', tone: 'bad', note: 'Denní maximum bylo výrazně pod papírovým — série byly relativně mnohem těžší, než plán čekal.' };
+  if (gap >= 2) return { label: 'Těžší den', tone: 'warn', note: 'Závodník byl pod svým obvyklým stavem. Jednou se to stane, opakovaně je to signál.' };
+  if (gap <= -2) return { label: 'Dobrý den', tone: 'ok', note: 'Denní maximum bylo nad papírovým — plán byl relativně lehčí, než měl být. Dá se přitlačit.' };
+  return { label: 'Podle plánu', tone: 'ok', note: 'Denní maximum sedí na to, s čím plán počítal.' };
+}
+
+/**
  * Únavové procento podle RTS: o kolik klesl odhad maxima od nejlepší série
  * dne. Počítá se zvlášť pro každý cvik a den — porovnávat dřep s benčem
  * nedává smysl.
@@ -816,10 +1025,10 @@ export const isHardSet = (e, e1rm) => {
 };
 
 /** Tvrdé série po týdnech a cvicích. */
-export function hardSets(entries, e1rms, startDate) {
+export function hardSets(entries, e1rms, startDate, variants = {}) {
   const weeks = new Map();
   for (const e of entries) {
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     if (!isHardSet(e, e1)) continue;
     const w = Math.max(1, Math.floor(daysBetween(startDate, e.date) / 7) + 1);
     if (!weeks.has(w)) weeks.set(w, {});
@@ -845,10 +1054,10 @@ export const EXPOSURE_THRESHOLDS = [85, 90, 95];
  * Exposice = samostatný den u cviku (ne série) — pár sérií nad 90 % ve
  * stejné jednotce je pořád jedna "těžká expozice", ne tři.
  */
-export function heavyExposures(entries, e1rms, startDate) {
+export function heavyExposures(entries, e1rms, startDate, variants = {}) {
   const weeks = new Map();
   for (const e of entries) {
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     if (!(e1 > 0)) continue;
     const pct = intensity(e, e1);
     const w = Math.max(1, Math.floor(daysBetween(startDate, e.date) / 7) + 1);
@@ -1625,12 +1834,12 @@ export function ageAdjusted(points, age, opts) {
  * Tohle je per-jednotka a z-skórovaná obdoba rpeCreep(), který totéž počítá
  * po týdnech a bez normalizace.
  */
-export function dailyReadiness(entries, e1rms, { window: win = 28 } = {}) {
+export function dailyReadiness(entries, e1rms, { window: win = 28, variants = {} } = {}) {
   const byDate = new Map();
 
   for (const e of entries) {
     const actual = e.actualRpe;
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     if (!(actual > 0) || !(e1 > 0) || !(liftedWeight(e) > 0) || !(liftedReps(e) > 0)) continue;
 
     const pct = intensity(e, e1);
@@ -1685,7 +1894,7 @@ export function gradeReadiness(z) {
  * `done` je podíl sérií, u kterých je zapsaná skutečnost. Nula znamená
  * naplánováno, jednička hotovo, mezi tím rozdělaná jednotka.
  */
-export function sessionSummary(entries, e1rms = {}) {
+export function sessionSummary(entries, e1rms = {}, variants = {}) {
   if (!entries.length) return null;
   const lifts = new Map();
   let tonnageSum = 0;
@@ -1694,7 +1903,7 @@ export function sessionSummary(entries, e1rms = {}) {
   let peak = 0;
 
   for (const e of entries) {
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     tonnageSum += tonnage(e);
     sets += e.sets;
     if (e.actualRpe != null || e.actualWeight != null) logged += e.sets;
@@ -1761,10 +1970,10 @@ export function gradeFrequency(perWeek) {
  * neexistuje; ukazuje jen skutečné rozestupy, aby byla vidět jednodenní
  * mezera, která tam většinou být neměla.
  */
-export function heavySpacing(entries, e1rms, { threshold = 85 } = {}) {
+export function heavySpacing(entries, e1rms, { threshold = 85, variants = {} } = {}) {
   const byLift = new Map();
   for (const e of entries) {
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     if (!(e1 > 0) || intensity(e, e1) < threshold) continue;
     if (!byLift.has(e.lift)) byLift.set(e.lift, new Set());
     byLift.get(e.lift).add(e.date);
@@ -2259,7 +2468,7 @@ export function wendlerCheck(weekLabel, repsAchieved) {
  * většina práce leží mezi 70 a 80 % maxima a série zřídka přesáhnou pět
  * opakování.
  */
-export function intensityHistogram(entries, e1rms, { bin = 5 } = {}) {
+export function intensityHistogram(entries, e1rms, { bin = 5, variants = {} } = {}) {
   const bins = new Map();
   let total = 0;
   let inMain = 0;
@@ -2267,7 +2476,7 @@ export function intensityHistogram(entries, e1rms, { bin = 5 } = {}) {
   let mainReps = 0;
 
   for (const e of entries) {
-    const e1 = e1rms[e.lift] ?? 0;
+    const e1 = entryE1rm(e, e1rms, variants);
     if (!(e1 > 0)) continue;
     const pct = intensity(e, e1);
     if (!(pct > 0)) continue;
@@ -2336,16 +2545,18 @@ export function rampRate(weeks) {
  * aby šlo dva cviky porovnat mezi sebou, ne k tomu, aby se z ní dělaly
  * závěry o absolutní hodnotě.
  */
-export function stimulusFatigue(entries, e1rms, lift) {
+export function stimulusFatigue(entries, e1rms, lift, variants = {}) {
   const own = entries.filter((e) => e.lift === lift);
   if (!own.length) return null;
-  const e1 = e1rms[lift] ?? 0;
-  if (!(e1 > 0)) return null;
+  if (!(e1rms[lift] > 0)) return null;
 
   let hardSetCount = 0;
   let intSum = 0;
   let inolSum = 0;
   for (const e of own) {
+    // varianta má vlastní odvozené maximum, takže se intenzita počítá proti němu
+    const e1 = entryE1rm(e, e1rms, variants);
+    if (!(e1 > 0)) continue;
     if (isHardSet(e, e1)) hardSetCount += e.sets;
     intSum += intensity(e, e1) * nl(e);
     inolSum += entryInol(e, e1);

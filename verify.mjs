@@ -17,7 +17,8 @@
 
 import * as C from './js/calc.js';
 import { SBD_RATIOS as SBD, AGE_COEFF as AGE, LOAD_VELOCITY as LV, MVT,
-  TAPER_REFERENCE, ATTEMPT_BENCHMARK, STRENGTH_P90, WENDLER_531, CUT_FACTS } from './js/data.js';
+  TAPER_REFERENCE, ATTEMPT_BENCHMARK, STRENGTH_P90, WENDLER_531, CUT_FACTS,
+  VARIANTS, RPE_SD_BY_PCT } from './js/data.js';
 
 let failed = 0;
 let passed = 0;
@@ -928,6 +929,115 @@ group('Doporučení');
   near('s historií pohody stojí na třech známkách', /ze 3 nezávislých/.test(withWellness.why) ? 1 : 0, 1, 0);
   near('trend výkonu je mezi nimi', /Výkon proti objemu/.test(withWellness.why) ? 1 : 0, 1, 0);
   near('zkratka RPE zůstala velkými písmeny', /rpe/.test(withWellness.why) ? 0 : 1, 1, 0);
+}
+
+group('Varianty soutěžních cviků');
+{
+  const e1 = { squat: 200, bench: 140, deadlift: 240 };
+  near('soutěžní cvik má vlastní maximum', C.entryE1rm({ lift: 'squat' }, e1), 200, 0.001);
+  near('pauzovaný dřep 88 % z dřepu', C.entryE1rm({ lift: 'squat', variant: 'pauseSquat' }, e1), 200 * VARIANTS.pauseSquat.pct, 0.05);
+  near('rack pull je nad soutěžním tahem', C.entryE1rm({ lift: 'deadlift', variant: 'rackPull' }, e1) > 240 ? 1 : 0, 1, 0);
+  near('vlastní koeficient přebije výchozí', C.entryE1rm({ lift: 'squat', variant: 'pauseSquat' }, e1, { pauseSquat: 0.85 }), 170, 0.05);
+  near('varianta se odvozuje ze základního cviku, ne z toho zapsaného',
+    C.entryE1rm({ lift: 'accessory', variant: 'closeGrip' }, e1), 140 * VARIANTS.closeGrip.pct, 0.05);
+  near('neznámá varianta spadne na základní maximum', C.entryE1rm({ lift: 'squat', variant: 'xxx' }, e1), 200, 0.001);
+  near('bez maxima vrací nulu', C.entryE1rm({ lift: 'squat', variant: 'pauseSquat' }, {}), 0, 0.001);
+
+  // všechny výchozí koeficienty musí ležet uvnitř uváděného rozptylu
+  const outside = Object.entries(VARIANTS).filter(([, v]) => v.pct < v.range[0] || v.pct > v.range[1]);
+  near('výchozí koeficienty leží ve svém rozptylu', outside.length, 0, 0);
+  near('každá varianta ukazuje na existující soutěžní cvik',
+    Object.values(VARIANTS).filter((v) => !['squat', 'bench', 'deadlift'].includes(v.base)).length, 0, 0);
+
+  // varianta se musí propsat do intenzity a tvrdých sérií
+  const mk = (variant, w) => ({ date: '2026-03-02', lift: 'squat', variant, sets: 3, reps: 3, weight: w, rpe: 8 });
+  // 160 kg je 80 % z dřepu 200, ale 91 % z pauzovaného 176
+  near('intenzita soutěžního dřepu', C.intensity(mk(null, 160), C.entryE1rm(mk(null, 160), e1)), 80, 0.1);
+  near('stejná váha je na variantě relativně těžší',
+    C.intensity(mk('pauseSquat', 160), C.entryE1rm(mk('pauseSquat', 160), e1)), (160 / 176) * 100, 0.1);
+
+  const an = C.analyzeBlock([mk('pauseSquat', 160)], e1, '2026-03-02');
+  near('varianta už není mimo intenzitní metriky', an.weeks[0].nlMain, 9, 0);
+  near('a spadne do správné Prilepinovy zóny', an.weeks[0].zones.z4, 9, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Vážený odhad maxima ze dne');
+{
+  near('spolehlivost RPE v tabulkovém bodě', C.rpeSd(100), 0.32, 0.001);
+  near('a v tom nejnižším', C.rpeSd(60), 1.18, 0.001);
+  near('mezi body se interpoluje', C.rpeSd(82.5), (0.97 + 0.92) / 2, 0.01);
+  near('za krajem se drží krajní hodnota', C.rpeSd(120), 0.32, 0.001);
+  near('lehčí série má horší spolehlivost než těžší', C.rpeSd(65) > C.rpeSd(95) ? 1 : 0, 1, 0);
+
+  const mk = (reps, rpe, w) => ({ date: '2026-04-06', lift: 'squat', sets: 1, reps, weight: w, rpe, actualRpe: rpe });
+  const one = C.setE1rmWithError(mk(3, 9, 180));
+  near('odhad ze série sedí na klasický výpočet', one.value, C.setE1rm(mk(3, 9, 180)), 0.1);
+  near('nese i svou chybu', one.sd > 0 ? 1 : 0, 1, 0);
+  near('trojka na devítce je spolehlivější než desítka na šestce',
+    C.setE1rmWithError(mk(3, 9, 180)).sd < C.setE1rmWithError(mk(10, 6, 180)).sd ? 1 : 0, 1, 0);
+
+  // jádro věci: maximum z několika zašuměných odhadů je nadhodnocené
+  const day = [mk(3, 9, 180), mk(10, 6, 130), mk(10, 6, 135)];
+  const r = C.sessionE1rm(day);
+  near('vážený odhad je nižší než to nejvyšší', r.weighted < r.best ? 1 : 0, 1, 0);
+  near('zkreslení je kladné', r.bias > 0 ? 1 : 0, 1, 0);
+  near('vážený odhad leží mezi krajními sériemi',
+    r.weighted > Math.min(...r.sets.map((x) => x.value)) && r.weighted < r.best ? 1 : 0, 1, 0);
+  near('počet sérií sedí', r.n, 3, 0);
+  near('chyba klesá s počtem sérií', C.sessionE1rm(day).se < C.sessionE1rm([day[0]]).se ? 1 : 0, 1, 0);
+
+  // jediná série: vážený odhad se rovná té sérii
+  const solo = C.sessionE1rm([mk(3, 9, 180)]);
+  near('u jediné série není co vážit', solo.weighted, solo.best, 0.05);
+  near('a zkreslení je nulové', solo.bias, 0, 0.05);
+  near('prázdný den vrací null', C.sessionE1rm([]) === null ? 1 : 0, 1, 0);
+  near('série bez RPE se přeskočí', C.sessionE1rm([{ date: 'x', lift: 'squat', sets: 1, reps: 5, weight: 100 }]) === null ? 1 : 0, 1, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Relativní intenzita k dennímu maximu');
+{
+  const e1 = { squat: 200 };
+  const mk = (date, reps, rpe, w) => ({ date, lift: 'squat', sets: 1, reps, weight: w, rpe: 8, actualRpe: rpe });
+
+  // dobrý den: pětka na RPE 8 se 170 kg ⇒ denní maximum nad papírovým
+  const good = C.relativeIntensity([mk('2026-04-06', 5, 8, 170)], e1);
+  near('absolutní intenzita je proti maximu na papíře', good[0].absolute, 85, 0.1);
+  near('relativní je proti dennímu maximu', good[0].relative < good[0].absolute ? 1 : 0, 1, 0);
+
+  // špatný den: závodník ubral na 160 kg a stejně to šlo na RPE 10
+  // ⇒ denní maximum spadlo pod papírové
+  const bad = C.relativeIntensity([mk('2026-04-08', 5, 10, 160)], e1);
+  near('lehčí váha ve špatný den je relativně těžší', bad[0].relative > bad[0].absolute ? 1 : 0, 1, 0);
+  near('přitom absolutní intenzita klesla', bad[0].absolute < 85 ? 1 : 0, 1, 0);
+
+  const gaps = C.intensityGap([mk('2026-04-06', 5, 8, 170), mk('2026-04-08', 5, 10, 160)], e1);
+  near('rozdíl se počítá po dnech', gaps.length, 2, 0);
+  near('špatný den má kladný rozdíl', gaps[1].gap > 0 ? 1 : 0, 1, 0);
+  near('dobrý den záporný', gaps[0].gap < 0 ? 1 : 0, 1, 0);
+  // to je celý smysl metriky: papír říká, že to byl lehčí trénink,
+  // denní maximum říká, že byl těžší
+  near('absolutní a relativní si můžou protiřečit',
+    gaps[1].absolute < gaps[0].absolute && gaps[1].relative > gaps[0].relative ? 1 : 0, 1, 0);
+  // den se dvěma cviky: procenta se zprůměrovat dají, kila ne
+  const mixed = C.intensityGap([
+    mk('2026-04-10', 5, 8, 170),
+    { date: '2026-04-10', lift: 'bench', sets: 1, reps: 5, weight: 120, rpe: 8, actualRpe: 8 },
+  ], { squat: 200, bench: 140 });
+  near('smíšený den je jeden řádek', mixed.length, 1, 0);
+  near('a ví, že měl dva cviky', mixed[0].lifts, 2, 0);
+  near('denní maximum v kilech u něj nedává smysl, takže se nevrací', mixed[0].dayMax === null ? 1 : 0, 1, 0);
+  near('procenta se ale zprůměrovala', mixed[0].absolute, (85 + (120 / 140) * 100) / 2, 0.1);
+  near('u jednoho cviku denní maximum zůstává', gaps[0].dayMax > 0 ? 1 : 0, 1, 0);
+  near('velký kladný rozdíl se hlásí jako špatný den', C.gradeIntensityGap(6).tone === 'bad' ? 1 : 0, 1, 0);
+  near('záporný jako dobrý', C.gradeIntensityGap(-3).tone === 'ok' ? 1 : 0, 1, 0);
+  near('bez zapsaného RPE se nepočítá nic',
+    C.relativeIntensity([{ date: 'x', lift: 'squat', sets: 1, reps: 5, weight: 170, rpe: 8 }], e1).length, 0, 0);
+
+  // varianta se počítá proti svému odvozenému maximu
+  const v = C.relativeIntensity([{ date: '2026-04-06', lift: 'squat', variant: 'pauseSquat', sets: 1, reps: 5, weight: 150, rpe: 8, actualRpe: 8 }], e1);
+  near('absolutní intenzita varianty jde z odvozeného maxima', v[0].absolute, (150 / 176) * 100, 0.2);
 }
 
 /* ---------------------------------------------------------------- */

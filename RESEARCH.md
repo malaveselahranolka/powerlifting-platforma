@@ -1237,6 +1237,121 @@ jediná, která ví, že 20 kg × 10 a 200 kg × 10 nejsou totéž.
   (v datech žádná skutečná maxima nebyla). Není to validace proti pravdě.
 - Preprint, není recenzovaný. Nasazuj jako volitelnou variantu, ne jako default.
 
+## 8.6 Odvozené maximum pro varianty soutěžních cviků — HIGH
+
+**Czech:** Koeficienty variant
+
+Pauzovaný dřep, deficitní tah nebo bench úzkým úchopem tvoří v seriózním bloku
+většinu práce, ale nikdo je netestuje na jeden pokus. Bez vlastního maxima
+spadnou mezi doplňkové cviky, a tím vypadnou z intenzity, INOL, Prilepina
+i tvrdých sérií. Analýza bloku pak počítá jen se soutěžními sériemi, kterých je
+málo — a čím specifičtější blok, tím větší podíl práce chybí.
+
+```
+maximum varianty = maximum soutěžního cviku × koeficient
+```
+
+| Varianta | Koeficient | Rozptyl v praxi |
+|---|---|---|
+| Rack pull | 1,15 | 1,10–1,20 |
+| Tah z bloků | 1,07 | 1,05–1,10 |
+| Box squat | 0,92 | 0,90–0,95 |
+| Bench úzkým úchopem | 0,92 | 0,90–0,95 |
+| Spoto press | 0,91 | 0,90–0,93 |
+| Pin press / Larsen press | 0,90 | 0,88–0,93 |
+| Deficitní tah | 0,90 | 0,88–0,92 |
+| Pauzovaný dřep / pauzovaný tah | 0,88 | 0,85–0,90 |
+| Přední dřep / tempo dřep | 0,82 | 0,80–0,85 |
+
+**Priorita: HIGH** — bez toho je analýza objemu systematicky neúplná.
+
+**Výhrady — DŮLEŽITÉ:**
+- **Recenzovaná tabulka těchto koeficientů neexistuje.** Hledal jsem ji;
+  co se dá najít, jsou trenérské zdroje, které se mezi sebou u některých
+  variant liší i o deset procentních bodů. Sloupec „rozptyl v praxi" je právě
+  tenhle nesouhlas, ne interval spolehlivosti.
+- Individuální rozdíly jsou velké a systematické: páková stavba rozhoduje,
+  o kolik se v pauzovaném dřepu ztratí. Proto musí jít každý koeficient
+  přepsat u konkrétního závodníka — appka to má v profilu svěřence.
+- Nad 100 % jsou varianty se zkráceným rozsahem pohybu. Tam je rozptyl
+  největší, protože „rack pull" neznamená u dvou lidí stejnou výšku kolíků.
+
+## 8.7 Vážený odhad maxima dne místo nejlepší série — HIGH
+
+**Czech:** Vážený odhad maxima
+
+Brát ze dne nejlepší sérii je lákavé a systematicky špatně. Maximum z několika
+zašuměných odhadů není odhad středu, ale extrémní hodnota: jeho očekávaná
+hodnota roste s počtem pozorování. Kdo zapíše osm sérií, dostane vyšší číslo
+než kdo zapíše dvě — i když oba zvedali totéž. Do grafu vývoje maxima se tak
+promítá pečlivost zápisu, ne síla.
+
+```
+maximum = Σ(hodnota ÷ σ²) ÷ Σ(1 ÷ σ²)
+chyba   = 1 ÷ √Σ(1 ÷ σ²)
+```
+
+σ je směrodatná odchylka nahlášeného RPE podle relativní intenzity
+(Zourdos a kol. 2016, zkušení dřepaři):
+
+| Intenzita | σ (RPE) |
+|---|---|
+| ~60 % | 1,18 |
+| ~75 % | 0,97 |
+| ~90 % | 0,92 |
+| ~100 % | 0,32 |
+
+Odhad z každé série se převede na σ v kilogramech tak, že se RPE rozhýbe
+o ±σ a vezme se polovina rozpětí výsledných maxim. Těžká trojka na RPE 9 pak
+váží násobně víc než desítka na RPE 6 — což odpovídá tomu, kolik informace
+každá z nich nese.
+
+**Priorita: HIGH** — týká se každého grafu vývoje maxima.
+
+**Výhrady:**
+- σ pochází od zkušených dřepařů; u začátečníků je nahlášené RPE horší napříč
+  celým rozsahem, takže absolutní hodnota chyby bude podstřelená. Poměry mezi
+  sériemi, na kterých vážení stojí, ale zůstávají.
+- Vážení obráceně k rozptylu je standardní statistika, ne moje konstrukce.
+  Konstrukce této appky je až spojení obojího — použití Zourdosových σ jako
+  vah pro odhady maxima.
+- Appka vedle váženého odhadu ukazuje i to, o kolik by nejlepší série
+  nadhodnotila, aby ten rozdíl nebyl schovaný.
+
+## 8.8 Relativní intenzita k dennímu maximu — HIGH
+
+**Czech:** Relativní intenzita
+
+Tohle je vlastní jádro metody RTS a většina aplikací (včetně téhle až doteď)
+ho nepoužívá: všechno počítají jako procento z 1RM. Naplánovaných 170 kg je
+pořád 85 % z dvousetkilového maxima, ať je člověk čerstvý nebo rozbitý.
+Proti dennímu maximu to ale ve špatný den může být 92 % — a právě proto ta
+série jede na RPE 9 místo osmičky.
+
+```
+absolutní % = váha ÷ maximum v profilu × 100
+relativní % = váha ÷ maximum toho dne  × 100     (§ 8.7)
+rozdíl      = relativní − absolutní
+```
+
+Rozdíl mezi těmi dvěma čísly je jméno pro to, čemu se v hovoru říká „špatný
+den". Absolutní intenzita říká, co bylo v plánu; relativní, co to pro
+závodníka toho dne doopravdy znamenalo.
+
+**Priorita: HIGH** — je to signál, který v datech už je a nikdo ho nečetl.
+
+**Výhrady:**
+- **Pásma ±2 a ±5 procentních bodů publikovaná nejsou.** Že se má pracovat
+  proti dennímu maximu, je Tuchschererovo; kde přesně končí „podle plánu"
+  a začíná „špatný den", je odhad této appky. Samotný rozdíl je poctivé číslo,
+  jeho zaškatulkování do pásem ne.
+- Denní maximum se počítá z týchž sérií, jejichž intenzitu pak hodnotí. To
+  není kruh (maximum jde z RPE a opakování, intenzita z váhy), ale znamená to,
+  že se den bez zapsaného RPE nedá vyhodnotit vůbec.
+- Ve dni s víc cviky žádné jedno „maximum dne" v kilech neexistuje. Procenta
+  se přes cviky průměrovat dají, kila ne — appka proto v takovém dni sloupec
+  s kilogramy neukáže.
+
 ---
 
 # 9. Závodní logistika a shazování váhy
