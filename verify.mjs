@@ -16,7 +16,7 @@
  */
 
 import * as C from './js/calc.js';
-import { SBD_RATIOS as SBD, AGE_COEFF as AGE } from './js/data.js';
+import { SBD_RATIOS as SBD, AGE_COEFF as AGE, LOAD_VELOCITY as LV, MVT } from './js/data.js';
 
 let failed = 0;
 let passed = 0;
@@ -474,6 +474,62 @@ group('Signál stropu regenerace (MRV)');
   near('stagnace při sníženém objemu není známka stropu', deload.score, 0, 0);
 
   near('bez dat hlásí málo dat', C.gradeMrv(C.mrvSignal({})).tone === 'low' ? 1 : 0, 1, 0);
+}
+
+group('Rychlost tyče (VBT)');
+{
+  // tabulkové body musí sedět přesně
+  near('dřep muži 70 % → 0,61 m/s', C.velocityAtPct('squat', 'm', 70).v, 0.61, 0.0001);
+  near('bench ženy 80 % → 0,36 m/s', C.velocityAtPct('bench', 'f', 80).v, 0.36, 0.0001);
+  // mezi body se interpoluje lineárně: 65 % leží v půli mezi 60 (0,70) a 70 (0,61)
+  near('dřep muži 65 % je půl cesty mezi 60 a 70', C.velocityAtPct('squat', 'm', 65).v, (0.70 + 0.61) / 2, 0.0001);
+  near('mimo rozsah tabulky vrací null', C.velocityAtPct('squat', 'm', 40) === null ? 1 : 0, 1, 0);
+  near('mrtvý tah v tabulce není', C.velocityAtPct('deadlift', 'm', 70) === null ? 1 : 0, 1, 0);
+
+  // odhad 1RM: dokonale lineární profil musí trefit dosazení MVT přesně.
+  // váha = 250 − 200 · rychlost  ⇒  při MVT 0,25 vyjde 200
+  const pts = [0.8, 0.6, 0.4, 0.3].map((v) => ({ velocity: v, weight: 250 - 200 * v }));
+  const prof = C.lvProfile1RM(pts, 'squat');
+  near('sklon regrese', prof.slope, -200, 0.01);
+  near('průsečík regrese', prof.intercept, 250, 0.01);
+  near('odhad 1RM = sklon · MVT + průsečík', prof.e1rm, -200 * MVT.squat.v + 250, 0.05);
+  near('dokonalá přímka má r² = 1', prof.r2, 1, 0.0001);
+  near('dřep je pro tuhle metodu použitelný', prof.reliable ? 1 : 0, 1, 0);
+
+  // mrtvý tah musí přijít označený jako nepoužitelný — studie metodu odmítá
+  near('mrtvý tah je označen jako nespolehlivý', C.lvProfile1RM(pts, 'deadlift').reliable ? 0 : 1, 1, 0);
+  near('pod tři série vrací null', C.lvProfile1RM(pts.slice(0, 2), 'squat') === null ? 1 : 0, 1, 0);
+  near('neznámý cvik vrací null', C.lvProfile1RM(pts, 'benchpress') === null ? 1 : 0, 1, 0);
+
+  // pásma poklesu rychlosti
+  near('pokles 5 % je málo únavy', C.gradeVelocityLoss(5).tone === 'low' ? 1 : 0, 1, 0);
+  near('pokles 20 % sedí na maximální sílu', C.gradeVelocityLoss(20).tone === 'ok' ? 1 : 0, 1, 0);
+  near('pokles 30 % je hypertrofie', C.gradeVelocityLoss(30).tone === 'warn' ? 1 : 0, 1, 0);
+  near('pokles 50 % už nic nepřidá', C.gradeVelocityLoss(50).tone === 'bad' ? 1 : 0, 1, 0);
+
+  // bezpřístrojová obdoba z deníku
+  const mk = (reps, actualRpe, weight = 150) => ({ date: '2026-04-06', lift: 'squat', sets: 1, reps, weight, rpe: 7, actualRpe });
+  const big = C.setDropoff([mk(8, 7), mk(7, 8), mk(5, 9)], 'squat', '2026-04-06');
+  near('propad z 8 na 5 opakování je 37,5 %', big.repDrop, 37.5, 0.01);
+  near('skok RPE ze 7 na 9 jsou 2 body', big.rpeJump, 2, 0.001);
+  near('propad nad 20 % znamená konec', big.stop ? 1 : 0, 1, 0);
+
+  const small = C.setDropoff([mk(8, 7), mk(8, 7.5), mk(7, 8)], 'squat', '2026-04-06');
+  near('propad z 8 na 7 je 12,5 %', small.repDrop, 12.5, 0.01);
+  near('malý propad i malý skok RPE = pokračovat', small.stop ? 0 : 1, 1, 0);
+
+  // série na jiné váze se nesmí porovnávat — nižší opakování tam znamenají
+  // jen to, že se přidalo na ose
+  const ramp = C.setDropoff([mk(8, 7, 150), mk(3, 9, 190)], 'squat', '2026-04-06');
+  near('rampa na různých vahách se nepočítá', ramp === null ? 1 : 0, 1, 0);
+  near('jediná série nedá pokles', C.setDropoff([mk(8, 7)], 'squat', '2026-04-06') === null ? 1 : 0, 1, 0);
+
+  // skutečná váha má přednost před plánovanou
+  const withActual = C.setDropoff([
+    { date: '2026-04-06', lift: 'squat', sets: 1, reps: 8, weight: 150, actualWeight: 140, rpe: 7, actualRpe: 7 },
+    { date: '2026-04-06', lift: 'squat', sets: 1, reps: 6, weight: 150, actualWeight: 140, rpe: 7, actualRpe: 9 },
+  ], 'squat', '2026-04-06');
+  near('pokles se počítá ze skutečné váhy', withActual.weight, 140, 0.001);
 }
 
 /* ---------------------------------------------------------------- */

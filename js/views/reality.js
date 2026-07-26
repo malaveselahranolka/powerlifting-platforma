@@ -1,4 +1,4 @@
-import { h, card, stat, icon, num, fixed, tag, table, field, decimalInput, numInput, inputNum, select, clear, toast, weekday } from '../ui.js';
+import { h, card, stat, icon, num, fixed, tag, table, decimalInput, numInput, select, clear, weekday } from '../ui.js';
 import { lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
@@ -112,7 +112,7 @@ function build(root, render, nav) {
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
           ...recs.map(recommendationFlag)),
         h('p.note', { style: { marginTop: '14px' } },
-          'Ber to jako signál, ne automatický zápis — appka nikam sama nic nepřepisuje. Váhu uprav přímo v tabulce týdne níž, u konkrétní série, která ještě neproběhla.')));
+          'Ber to jako signál, ne automatický zápis — appka nikam sama nic nepřepisuje. Plán se mění ve Stavbě bloku; tabulka týdne níž slouží k zápisu toho, co se doopravdy stalo.')));
     }
   }
 
@@ -217,7 +217,7 @@ function sessionEditor(scoped, blk, render) {
   }
 
   return card(`Týden ${week} — co se reálně stalo`, {
-    eyebrow: 'Dopiš skutečné RPE. Váhu a opakování měň jen tam, kde se lišily od plánu.',
+    eyebrow: 'Vlevo plán, vpravo skutečnost. Prázdné pole znamená „šlo to podle plánu".',
     class: 'is-flush',
   }, body);
 }
@@ -225,31 +225,100 @@ function sessionEditor(scoped, blk, render) {
 function dayTable(dayRows, render) {
   return h('div.table-wrap',
     h('table.table.plan-table',
-      h('thead', h('tr',
-        h('th', 'Cvik'),
-        h('th.num', 'Plán'),
-        h('th.num', 'Plán RPE'),
-        h('th.num', 'Skutečné RPE'),
-        h('th.num', 'Odchylka'),
-        h('th.num', `Odhad 1RM (${U()})`),
-        h('th', ''))),
+      h('thead',
+        h('tr',
+          h('th', { rowspan: 2 }, 'Cvik'),
+          h('th.num', { rowspan: 2 }, 'Série'),
+          h('th.num.col-plan', { colspan: 2 }, 'Plán'),
+          h('th.num.col-real', { colspan: 3 }, 'Skutečnost'),
+          h('th.num', { rowspan: 2 }, 'Odchylka'),
+          h('th.num', { rowspan: 2 }, `Odhad 1RM (${U()})`),
+          h('th', { rowspan: 2 }, '')),
+        h('tr',
+          h('th.num.col-plan', `Váha (${U()})`),
+          h('th.num.col-plan', 'RPE'),
+          h('th.num.col-real', `Váha (${U()})`),
+          h('th.num.col-real', 'Opak.'),
+          h('th.num.col-real', 'RPE'))),
       h('tbody', ...dayRows.map((e) => realRow(e, render)))));
 }
 
+/**
+ * Jeden řádek: plán vlevo jako pevné číslo, skutečnost vpravo k vyplnění.
+ *
+ * Plánovaná váha se tady záměrně nedá přepsat. Dřív se přepisovala a tím
+ * zmizelo to jediné, proti čemu se dá skutečnost porovnat — po zápisu už
+ * nikdo nezjistil, že se místo naplánovaných 170 zvedlo 160. Plán se mění
+ * ve Stavbě bloku, tady se zapisuje, co se doopravdy stalo.
+ */
 function realRow(e, render) {
   const deltaCell = h('td.num');
   const e1Cell = h('td.num');
+  const wDeltaHint = h('span.faint.mono', { style: { fontSize: '10.5px' } });
 
-  const input = decimalInput({
+  const commit = (patch) => {
+    Object.assign(e, patch);
+    S.commit((s) => {
+      const t = s.entries.find((x) => x.id === e.id);
+      if (t) Object.assign(t, patch);
+    });
+    refresh();
+  };
+
+  const rpeInput = decimalInput({
     value: e.actualRpe == null ? '' : rpeLabel(e.actualRpe),
     class: 'inline-input',
     placeholder: '—',
     'aria-label': 'Skutečné RPE',
   });
 
-  const refresh = () => {
+  rpeInput.addEventListener('input', () => {
+    const raw = rpeInput.value.trim();
+    if (raw === '') { commit({ actualRpe: null }); return; }
+    const v = Number(raw.replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) return;
+    commit({ actualRpe: Math.min(10, Math.max(5, Math.round(v * 2) / 2)) });
+  });
+
+  const weightInput = h('input.input.inline-input', {
+    type: 'text', inputmode: 'decimal', autocomplete: 'off',
+    value: e.actualWeight == null ? '' : W(e.actualWeight, 1),
+    placeholder: W(e.weight, 1),
+    'aria-label': `Skutečná váha (${U()})`,
+  });
+
+  weightInput.addEventListener('input', () => {
+    const raw = weightInput.value.trim();
+    if (raw === '') { commit({ actualWeight: null }); return; }
+    const v = S.fromDisplay(Number(raw.replace(/\s/g, '').replace(',', '.')));
+    if (!(v > 0)) return;
+    commit({ actualWeight: v });
+  });
+
+  const repsInput = numInput({
+    value: e.actualReps == null ? '' : String(e.actualReps),
+    step: 1, min: 1, class: 'inline-input', placeholder: String(e.reps),
+    style: { width: '48px' }, 'aria-label': 'Skutečná opakování',
+    oninput: (ev) => {
+      const raw = ev.target.value.trim();
+      if (raw === '') { commit({ actualReps: null }); return; }
+      const v = Math.round(Number(raw));
+      if (!(v > 0)) return;
+      commit({ actualReps: v });
+    },
+  });
+
+  function refresh() {
     clear(deltaCell);
     clear(e1Cell);
+    clear(wDeltaHint);
+
+    // odchylka váhy se ukáže jen tehdy, když se od plánu liší
+    const wd = C.round(C.liftedWeight(e) - e.weight, 2);
+    if (e.actualWeight != null && Math.abs(wd) > 0.001) {
+      wDeltaHint.append(`${wd > 0 ? '+' : '−'}${W(Math.abs(wd), 1)}`);
+      wDeltaHint.style.color = wd > 0 ? 'var(--ok)' : 'var(--warn)';
+    }
 
     if (e.actualRpe == null) {
       deltaCell.append(h('span.faint', '—'));
@@ -264,53 +333,30 @@ function realRow(e, render) {
 
     const v = C.setE1rm(e);
     e1Cell.append(v == null ? h('span.faint', 'mimo tabulku') : h('b', W(v, 1)));
-  };
-
-  input.addEventListener('input', () => {
-    const raw = input.value.trim();
-    if (raw === '') {
-      S.commit((s) => { const t = s.entries.find((x) => x.id === e.id); if (t) t.actualRpe = null; });
-      e.actualRpe = null;
-      refresh();
-      return;
-    }
-    const v = Number(raw.replace(',', '.'));
-    if (!Number.isFinite(v) || v <= 0) return;
-    const rounded = Math.min(10, Math.max(5, Math.round(v * 2) / 2));
-    e.actualRpe = rounded;
-    S.commit((s) => { const t = s.entries.find((x) => x.id === e.id); if (t) t.actualRpe = rounded; });
-    refresh();
-  });
-
-  const weightInput = numInput({
-    value: inputNum(S.toDisplay(e.weight), 1), step: 2.5, class: 'inline-input',
-    style: { width: '72px' }, 'aria-label': `Váha (${U()})`,
-    onchange: (ev) => {
-      const v = S.fromDisplay(Number(ev.target.value));
-      if (!(v > 0)) return;
-      e.weight = v;
-      S.commit((s) => { const t = s.entries.find((x) => x.id === e.id); if (t) t.weight = v; });
-      refresh();
-    },
-  });
+  }
 
   refresh();
 
-  return h('tr',
+  const changed = e.actualWeight != null || e.actualReps != null || e.actualRpe != null;
+
+  return h('tr', { class: changed ? 'is-logged' : null },
     h('td', h('span', liftDot(e.lift), liftName(e))),
-    h('td.num', h('span.mono', `${e.sets}×${e.reps} @ `), weightInput, h('span.faint', ` ${U()}`)),
-    h('td.num', h('span.faint', e.rpe == null ? '—' : rpeLabel(e.rpe))),
-    h('td.num', input),
+    h('td.num', h('span.mono.faint', `${e.sets}×${e.reps}`)),
+    h('td.num.col-plan', h('span.mono', W(e.weight, 1))),
+    h('td.num.col-plan', h('span.mono', e.rpe == null ? '—' : rpeLabel(e.rpe))),
+    h('td.num.col-real', weightInput, wDeltaHint),
+    h('td.num.col-real', repsInput),
+    h('td.num.col-real', rpeInput),
     deltaCell,
     e1Cell,
     h('td', h('div.row-actions',
       h('button.btn.btn-ghost.btn-sm', {
-        title: 'Šlo přesně podle plánu',
+        title: 'Šlo přesně podle plánu — doplní váhu, opakování i RPE',
         onclick: () => {
-          e.actualRpe = e.rpe;
-          S.commit((s) => { const t = s.entries.find((x) => x.id === e.id); if (t) t.actualRpe = e.rpe; });
-          input.value = e.rpe == null ? '' : rpeLabel(e.rpe);
-          refresh();
+          commit({ actualWeight: e.weight, actualReps: e.reps, actualRpe: e.rpe });
+          weightInput.value = W(e.weight, 1);
+          repsInput.value = String(e.reps);
+          rpeInput.value = e.rpe == null ? '' : rpeLabel(e.rpe);
         },
       }, icon('check', 14)))));
 }

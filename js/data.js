@@ -67,21 +67,6 @@ export const PRILEPIN = [
   { key: 'z4', label: '≥ 90 %', min: 90, max: 999, reps: '1–2', optimal: 7, range: [4, 10], color: 'var(--zone-4)' },
 ];
 
-/* ---------- INOL pásma ---------- */
-export const INOL_SESSION = [
-  { max: 0.4, label: 'Málo', tone: 'low', note: 'Podnět nestačí na adaptaci.' },
-  { max: 1.0, label: 'Optimální', tone: 'ok', note: 'Zvládnutelná dávka, dobrá regenerace.' },
-  { max: 2.0, label: 'Náročné', tone: 'warn', note: 'Sedí do akumulační fáze.' },
-  { max: 99, label: 'Extrém', tone: 'bad', note: 'Přetížení. Použij výjimečně.' },
-];
-
-export const INOL_WEEK = [
-  { max: 2.0, label: 'Lehký týden', tone: 'low', note: 'Deload nebo úvod bloku.' },
-  { max: 3.0, label: 'Udržitelné', tone: 'ok', note: 'Náročné, ale opakovatelné.' },
-  { max: 4.0, label: 'Vysoká zátěž', tone: 'warn', note: 'Max 1–2 týdny v řadě.' },
-  { max: 99, label: 'Nedoporučeno', tone: 'bad', note: 'Riziko přetrénování.' },
-];
-
 /* ---------- Koeficienty pro skóre ---------- */
 // DOTS: total * 500 / (a + b·bw + c·bw² + d·bw³ + e·bw⁴)
 export const DOTS_COEF = {
@@ -112,6 +97,55 @@ export const WEIGHT_CLASSES = {
   m: [53, 59, 66, 74, 83, 93, 105, 120, Infinity],
   f: [43, 47, 52, 57, 63, 69, 76, 84, Infinity],
 };
+
+/* ---------- Rychlost tyče (VBT) ----------
+   Průměrná propulzní rychlost v m·s⁻¹ podle relativní intenzity.
+
+   POZOR na původ dat: tahle tabulka pochází od mladých rekreačně trénovaných
+   lidí a měřilo se na Smithově stroji, ne na volné ose („Bar Load-Velocity
+   Profile of Full Squat and Bench Press", PMC9180020). Na volnou osu se
+   nepřenáší jedna k jedné a mezi jednotlivci kolísá o 11 až 25 % — proto
+   je to referenční orientace, ne předpis. Vlastní změřený profil je vždycky
+   lepší než tabulka.
+
+   Mrtvý tah tady schválně není: publikovaná data pro něj v týhle podobě
+   nejsou a profilování rychlosti u něj navíc nefunguje (viz MVT níž).       */
+export const LOAD_VELOCITY = {
+  squat: {
+    m: [[50, 0.87, 0.08], [60, 0.70, 0.07], [70, 0.61, 0.09], [80, 0.49, 0.12], [100, 0.26, 0.11]],
+    f: [[50, 0.81, 0.09], [60, 0.64, 0.11], [70, 0.55, 0.10], [80, 0.42, 0.11], [100, 0.23, 0.06]],
+  },
+  bench: {
+    m: [[50, 0.92, 0.10], [60, 0.70, 0.10], [70, 0.57, 0.10], [80, 0.42, 0.09], [100, 0.21, 0.10]],
+    f: [[50, 0.82, 0.09], [60, 0.63, 0.09], [70, 0.51, 0.10], [80, 0.36, 0.08], [100, 0.19, 0.07]],
+  },
+};
+
+/* Skutečná průměrná koncentrická rychlost při 1RM u elitních trojbojařů na
+   volné ose — Helms a kol. (2017), JSCR 31(2):292–7, n = 15. Tohle je jiná
+   veličina než MVT z profilu níž a nesmí se s ní plést.                     */
+export const VELOCITY_AT_1RM = {
+  squat: { v: 0.23, sd: 0.05, rpe: 9.6 },
+  bench: { v: 0.10, sd: 0.04, rpe: 9.7 },
+  deadlift: { v: 0.14, sd: 0.05, rpe: 9.6 },
+};
+
+/* Minimální prahová rychlost — rychlost posledního zvládnutého opakování.
+   Do odhadu 1RM z profilu se dosazuje právě tahle hodnota.                  */
+export const MVT = {
+  bench: { v: 0.15, sd: 0.03, note: 'n = 68 profesionálních ragbistů', usable: true },
+  squat: { v: 0.25, sd: 0.03, note: 'box squat, n = 12; literatura uvádí 0,27–0,30', usable: true },
+  deadlift: { v: 0.31, sd: null, note: 'z profilu 0,28–0,34 — pro odhad 1RM se NEPOUŽÍVÁ, viz varování', usable: false },
+};
+
+/* Práh poklesu rychlosti v sérii — nejlíp podložená část VBT.
+   Jukic a kol. (2023), Sports Medicine, doi 10.1007/s40279-022-01754-4.     */
+export const VELOCITY_LOSS = [
+  { max: 10, label: 'Málo únavy', tone: 'low', note: 'Pod 10 % je podnět na adaptaci slabý.' },
+  { max: 25, label: 'Maximální síla', tone: 'ok', note: '10–25 % je pásmo, ve kterém síla roste nejefektivněji.' },
+  { max: 40, label: 'Hypertrofie', tone: 'warn', note: 'Nad 25 % se nabírá objem, za cenu vyšší únavy.' },
+  { max: 999, label: 'Bez dalšího přínosu', tone: 'bad', note: 'Nad 40 % už se nic navíc nezíská, jen se hromadí únava.' },
+];
 
 /* ---------- Podíly cviků na součtu ----------
    Hernández Ugalde (2023), „Powerlifting Balance Of SBD Disciplines Ratio To

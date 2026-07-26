@@ -427,11 +427,16 @@ function editor(entries, blk, a, render) {
 /* =========================================================
    CSV
    ========================================================= */
+/* Export nese plán i skutečnost. Kdyby vezl jen plán, záloha by zahodila
+   přesně tu část, kvůli které se trénink zapisuje. */
 function exportCsv(entries, blk) {
-  const head = 'datum;cvik;nazev;serie;opakovani;vaha_kg;rpe';
+  const head = 'datum;cvik;nazev;serie;opakovani;vaha_kg;rpe;skutecna_vaha_kg;skutecna_opakovani;skutecne_rpe';
   const body = entries
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((e) => [e.date, e.lift, e.name ?? '', e.sets, e.reps, e.weight, e.rpe ?? ''].join(';'));
+    .map((e) => [
+      e.date, e.lift, e.name ?? '', e.sets, e.reps, e.weight, e.rpe ?? '',
+      e.actualWeight ?? '', e.actualReps ?? '', e.actualRpe ?? '',
+    ].join(';'));
   download(`${blk.name.replace(/\s+/g, '-').toLowerCase()}.csv`, [head, ...body].join('\n'));
   toast('CSV staženo');
 }
@@ -446,13 +451,17 @@ function importCsv(blk, render) {
     let n = 0;
     S.commit((s) => {
       for (const line of lines) {
-        const [date, lift, name, sets, reps, weight, rpe] = line.split(/[;,\t]/).map((x) => x?.trim());
+        const [date, lift, name, sets, reps, weight, rpe, aw, ar, arpe] =
+          line.split(/[;,\t]/).map((x) => x?.trim());
         if (!date || !sets) continue;
+        // sloupce se skutečností jsou nepovinné — starší soubory je nemají
+        const opt = (v) => (v ? Number(v) : null);
         s.entries.push({
           id: S.uid(), blockId: blk.id, athleteId: blk.athleteId,
           date, lift: LIFTS[lift] ? lift : 'accessory', name: name || null,
           sets: Number(sets), reps: Number(reps), weight: Number(weight),
-          rpe: rpe ? Number(rpe) : null, actualRpe: null,
+          rpe: rpe ? Number(rpe) : null,
+          actualWeight: opt(aw), actualReps: opt(ar), actualRpe: opt(arpe),
         });
         n++;
       }

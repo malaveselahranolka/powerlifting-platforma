@@ -28,7 +28,7 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 190 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 215 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
@@ -36,7 +36,8 @@ expozice, výsledky ze zápasu, doporučená úprava příštího týdne, Hooper
 detekce plateau na E1RM, nakládání osy v kilech i librách, váhové kategorie,
 dvousložkový model kondice a únavy (proti analyticky spočítané sumě exponenciál),
 typická chyba a nejmenší prokazatelná změna, podíly cviků na součtu, věkové
-koeficienty, denní připravenost a signál stropu regenerace.
+koeficienty, denní připravenost, signál stropu regenerace, tabulka rychlostí,
+odhad maxima z profilu zatížení a rychlosti i prahy poklesu.
 
 ## Co to umí
 
@@ -47,7 +48,8 @@ koeficienty, denní připravenost a signál stropu regenerace.
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
-| **Plán vs. realita** | Posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučení podle skutečného výkonu, přímá editace váhy v tabulce týdne |
+| **Rychlost** | Profil zatížení a rychlosti, odhad maxima z profilu, práh poklesu v sérii a bezpřístrojová obdoba z deníku |
+| **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučení podle skutečného výkonu |
 | **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, rozložení součtu proti elitě |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, INOL, Prilepin, tvrdé série, těžké expozice (85/90/95 %), charakter týdne (objem × špička), plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek |
@@ -84,6 +86,8 @@ koeficienty, denní připravenost a signál stropu regenerace.
 | Strop regenerace | dvě ze tří známek: výkon vs. objem, posun RPE ≥ 0,5, Hooper o 15 % horší | kombinace appky nad Israetel a kol. (2015); dávka a odezva Pelland, Schoenfeld a kol. (2025) |
 | Rozložení součtu | podíl cviku na součtu proti pásmu elity podle kategorie, pohlaví a výstroje | Hernández Ugalde (2023), Int J Strength Cond 3(1) — 128 tisíc startů IPF 2012–2022 |
 | Věkový koeficient | body × koeficient(věk) | Foster 14–22, Glossbrennerem opravený McCulloch 41–80, USAPL 81–90 (varianta OpenPowerlifting) |
+| Odhad 1RM z rychlosti | 1RM = sklon · MVT + průsečík (regrese váhy na rychlosti) | MVT bench PMC5968962 a Sportsmith; tabulka rychlostí PMC9180020; rychlost při 1RM Helms a kol. (2017) |
+| Práh poklesu rychlosti | (nejrychlejší − poslední) ÷ nejrychlejší; pásma 10 / 25 / 40 % | Jukic a kol. (2023), Sports Medicine, doi 10.1007/s40279-022-01754-4 |
 | Pokusy | 91 % / 96,5 % / 102 % z E1RM | rozbor MS IPF 2012–2019 |
 | Úspěšnost pokusů | povedené ÷ platné pokusy × 100 | rozbor MS IPF 2016 (Stronger by Science) |
 | DOTS | součet × 500 ÷ polynom 4. stupně | ověřeno proti OpenPowerlifting |
@@ -110,6 +114,15 @@ empiricky změřené — jsou to trenérské odhady. Appka proto žádnou hranic
 v sériích netvrdí a místo toho hlídá důsledky: jestli se přestal zvedat výkon,
 jestli stejný plán jede na vyšší RPE a jestli spadla pohoda. Dvě známky ze tří
 naráz jsou signál, jedna je šum.
+
+**Rychlost tyče.** Tabulka rychlostí je naměřená na Smithově stroji a na mladých
+rekreačně trénovaných lidech, ne na trojbojařích s volnou osou — mezi jedinci
+kolísá o 11 až 25 %, takže je to orientace v řádu, ne cíl na desetinu.
+U mrtvého tahu appka odhad maxima z profilu vůbec neukáže: publikovaná data
+ukazují podhodnocení o 9 až 15 % a autoři metodu pro tenhle cvik odmítají.
+Polynomiální rovnice pro převod rychlosti na procenta se nepočítají, protože
+se jejich koeficienty nepodařilo ověřit z původního zdroje — vymýšlet si je
+by bylo horší než je neuvádět.
 
 **Rozložení součtu.** Studie ukazuje souvislost, ne příčinu. Závodníci uvnitř
 pásma mají v průměru vyšší IPF GL, ale z toho neplyne, že se součet zvedne tím,

@@ -1,9 +1,10 @@
 // Veškerá matematika. Čisté funkce, žádný DOM.
 
 import {
-  RPE_SEQ, RPE_STEPS, PRILEPIN, INOL_SESSION, INOL_WEEK,
+  RPE_SEQ, RPE_STEPS, PRILEPIN,
   DOTS_COEF, IPF_GL_COEF, WILKS_COEF, WEIGHT_CLASSES,
   PLATES_KG, PLATES_LB, SBD_RATIOS, AGE_COEFF, AGE_COEFF_SOLID,
+  LOAD_VELOCITY, MVT, VELOCITY_LOSS,
 } from './data.js';
 
 export const LB_PER_KG = 2.2046226218;
@@ -156,14 +157,28 @@ export function roundToBar(weight, { unit = 'kg', step = null } = {}) {
    Metriky bloku
    ========================================================= */
 
+/**
+ * Váha, se kterou se počítá.
+ *
+ * Plán a skutečnost jsou dvě různá čísla a appka si je nepřepisuje: `weight`
+ * drží, co bylo napsané, `actualWeight` to, co se doopravdy naložilo. Všechno,
+ * co popisuje odvedený trénink — tonáž, intenzita, odhad maxima, únava —
+ * bere skutečnou váhu, pokud je zapsaná. Kde zapsaná není, zůstává plán,
+ * takže se nic nerozbije u sérií, které teprve přijdou.
+ */
+export const liftedWeight = (e) => e.actualWeight ?? e.weight;
+
+/** Opakování, která se doopravdy udělala. */
+export const liftedReps = (e) => e.actualReps ?? e.reps;
+
 /** Tonáž jedné položky = série × opakování × váha. */
-export const tonnage = (e) => e.sets * e.reps * e.weight;
+export const tonnage = (e) => e.sets * liftedReps(e) * liftedWeight(e);
 
 /** Počet zvedů (NL). */
-export const nl = (e) => e.sets * e.reps;
+export const nl = (e) => e.sets * liftedReps(e);
 
 /** Relativní intenzita v % z E1RM. */
-export const intensity = (e, e1rm) => (e1rm > 0 ? (e.weight / e1rm) * 100 : 0);
+export const intensity = (e, e1rm) => (e1rm > 0 ? (liftedWeight(e) / e1rm) * 100 : 0);
 
 /**
  * INOL = počet opakování / (100 − intenzita v %).
@@ -179,10 +194,6 @@ export const entryInol = (e, e1rm) => inol(nl(e), intensity(e, e1rm));
 
 /** Do které Prilepinovy zóny položka spadá. */
 export const prilepinZone = (pct) => PRILEPIN.find((z) => pct >= z.min && pct <= z.max) ?? PRILEPIN[0];
-
-/** Hodnocení INOL — pro jednu jednotku nebo celý týden. */
-export const gradeInol = (v, scope = 'session') =>
-  (scope === 'week' ? INOL_WEEK : INOL_SESSION).find((b) => v < b.max) ?? INOL_SESSION.at(-1);
 
 /**
  * Charakter týdne. Objem a intenzita jsou dvě nezávislé osy a jedno číslo
@@ -536,24 +547,34 @@ const num2 = (v, d = 2) => (v == null ? '—' : String(round(v, d)).replace('.',
  */
 export function setE1rm(e) {
   const rpe = e.actualRpe ?? e.rpe;
-  if (!(e.weight > 0) || !(e.reps > 0) || !(rpe > 0)) return null;
-  const v = E1RM.rpe(e.weight, e.reps, rpe);
+  const w = liftedWeight(e);
+  const r = liftedReps(e);
+  if (!(w > 0) || !(r > 0) || !(rpe > 0)) return null;
+  const v = E1RM.rpe(w, r, rpe);
   return v == null ? null : round(v, 1);
 }
 
 /**
- * Porovnání plánu se skutečností, položka po položce.
- * Kladná odchylka znamená, že série byla těžší, než měla být.
+ * Porovnání plánu se skutečností, položka po položce — a to na obou osách,
+ * na kterých se trénink může rozejít s plánem: kolik se naložilo a jak těžké
+ * to bylo. Kladná odchylka RPE znamená, že série byla těžší, než měla být;
+ * kladná odchylka váhy, že se naložilo víc, než bylo napsané.
  */
 export function planVsActual(entries) {
   return entries
-    .filter((e) => e.actualRpe != null && e.rpe != null)
-    .map((e) => ({
-      ...e,
-      delta: round(e.actualRpe - e.rpe, 1),
-      e1rmPlan: E1RM.rpe(e.weight, e.reps, e.rpe) ? round(E1RM.rpe(e.weight, e.reps, e.rpe), 1) : null,
-      e1rmReal: setE1rm(e),
-    }));
+    .filter((e) => e.actualRpe != null || e.actualWeight != null)
+    .map((e) => {
+      const plan = e.rpe == null ? null : E1RM.rpe(e.weight, e.reps, e.rpe);
+      return {
+        ...e,
+        planWeight: round(e.weight, 2),
+        realWeight: round(liftedWeight(e), 2),
+        weightDelta: round(liftedWeight(e) - e.weight, 2),
+        rpeDelta: e.actualRpe != null && e.rpe != null ? round(e.actualRpe - e.rpe, 1) : null,
+        e1rmPlan: plan == null ? null : round(plan, 1),
+        e1rmReal: setE1rm(e),
+      };
+    });
 }
 
 /**
@@ -1384,10 +1405,10 @@ export function dailyReadiness(entries, e1rms, { window: win = 28 } = {}) {
   for (const e of entries) {
     const actual = e.actualRpe;
     const e1 = e1rms[e.lift] ?? 0;
-    if (!(actual > 0) || !(e1 > 0) || !(e.weight > 0) || !(e.reps > 0)) continue;
+    if (!(actual > 0) || !(e1 > 0) || !(liftedWeight(e) > 0) || !(liftedReps(e) > 0)) continue;
 
     const pct = intensity(e, e1);
-    const expected = rpeFromPct(e.reps, pct);
+    const expected = rpeFromPct(liftedReps(e), pct);
     if (expected == null) continue;   // mimo tabulku — odhad by lhal
 
     const w = Math.max(0.01, entryInol(e, e1));
@@ -1426,6 +1447,130 @@ export function gradeReadiness(z) {
   if (z >= 1) return { label: 'Těžší než obvykle', tone: 'warn', note: 'Den byl náročnější, než měl podle plánu být. Jednou se to stane; třikrát po sobě je to signál.' };
   if (z <= -1) return { label: 'Lehčí než obvykle', tone: 'ok', note: 'Šlo to líp, než plán čekal. Buď je závodník odpočatý, nebo se plán začíná podceňovat.' };
   return { label: 'Podle očekávání', tone: 'ok', note: 'Trénink sedí na to, jak byl napsaný.' };
+}
+
+/* =========================================================
+   Rychlost tyče (VBT)
+   ========================================================= */
+
+/**
+ * Očekávaná rychlost tyče pro danou relativní intenzitu.
+ * Mezi tabulkovými body se lineárně interpoluje; mimo rozsah vrací null,
+ * protože extrapolovat pětibodovou tabulku by byl výmysl.
+ */
+export function velocityAtPct(lift, sex, pct) {
+  const rows = LOAD_VELOCITY[lift]?.[sex];
+  if (!rows || !(pct > 0)) return null;
+  if (pct < rows[0][0] || pct > rows.at(-1)[0]) return null;
+
+  for (let i = 0; i < rows.length - 1; i++) {
+    const [p0, v0, sd0] = rows[i];
+    const [p1, v1, sd1] = rows[i + 1];
+    if (pct >= p0 && pct <= p1) {
+      const t = p1 === p0 ? 0 : (pct - p0) / (p1 - p0);
+      return { v: round(v0 + (v1 - v0) * t, 3), sd: round(sd0 + (sd1 - sd0) * t, 3) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Odhad 1RM z naměřeného profilu zatížení a rychlosti.
+ *
+ * Přes dvojice (váha, rychlost) se proloží přímka a dosadí se do ní minimální
+ * prahová rychlost cviku:  1RM = sklon · MVT + průsečík.
+ *
+ * NA MRTVÝ TAH SE TOHLE NESMÍ POUŽÍT. Studie, která to testovala (PMC5968962),
+ * zjistila, že všechny varianty prahu podhodnotily skutečné maximum o 9 až 15 %,
+ * tedy o 16 až 28 kg, a autoři výslovně píší, že se individuální profily
+ * k odhadu maxima v mrtvém tahu používat nemají. Funkce proto u tahu vrací
+ * výsledek s příznakem `reliable: false` a UI ho odmítne ukázat jako číslo.
+ *
+ * points: [{ weight, velocity }] — aspoň tři postupně těžší série.
+ */
+export function lvProfile1RM(points, lift) {
+  const pts = (points ?? []).filter((p) => p.weight > 0 && p.velocity > 0);
+  if (pts.length < 3) return null;
+
+  const mvt = MVT[lift];
+  if (!mvt) return null;
+
+  // regrese váhy na rychlosti — rychlost je tu nezávislá proměnná,
+  // protože se do přímky dosazuje právě rychlost (MVT)
+  const n = pts.length;
+  const mx = pts.reduce((s, p) => s + p.velocity, 0) / n;
+  const my = pts.reduce((s, p) => s + p.weight, 0) / n;
+  const den = pts.reduce((s, p) => s + (p.velocity - mx) ** 2, 0);
+  if (den === 0) return null;
+  const slope = pts.reduce((s, p) => s + (p.velocity - mx) * (p.weight - my), 0) / den;
+  const intercept = my - slope * mx;
+
+  // jak těsně body na přímce leží — volný profil s r² pod 0,95 nemá cenu dosazovat
+  const ssTot = pts.reduce((s, p) => s + (p.weight - my) ** 2, 0);
+  const ssRes = pts.reduce((s, p) => s + (p.weight - (intercept + slope * p.velocity)) ** 2, 0);
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : null;
+
+  return {
+    n,
+    mvt: mvt.v,
+    slope: round(slope, 2),
+    intercept: round(intercept, 2),
+    r2: r2 == null ? null : round(r2, 3),
+    e1rm: round(slope * mvt.v + intercept, 1),
+    reliable: mvt.usable,
+    note: mvt.note,
+  };
+}
+
+export function gradeVelocityLoss(pct) {
+  if (pct == null || !Number.isFinite(pct)) return { label: 'Bez dat', tone: 'low', note: 'Zadej rychlost první a poslední série.' };
+  return VELOCITY_LOSS.find((b) => pct < b.max) ?? VELOCITY_LOSS.at(-1);
+}
+
+/**
+ * Bezpřístrojová obdoba prahu poklesu rychlosti.
+ *
+ * Kdo nemá měřák, může stejnou otázku — „kdy sérii ukončit" — číst z toho, co
+ * appka stejně zapisuje: kolik opakování se při stejné váze udrželo a na jaké
+ * RPE. Propad opakování o víc než pětinu proti první sérii nebo skok RPE
+ * o dva body a víc odpovídá zhruba dvaceti až pětadvaceti procentům poklesu
+ * rychlosti.
+ *
+ * POZOR: tohle je převodní pravidlo z trenérské praxe, ne změřená ekvivalence.
+ * Nikdo neporovnal obě veličiny na stejném vzorku — je to rozumná analogie,
+ * ne validovaný přepočet, a appka to tak i pojmenuje.
+ */
+export function setDropoff(entries, lift, date) {
+  const day = entries
+    .filter((e) => e.lift === lift && e.date === date && e.sets > 0)
+    .filter((e) => liftedWeight(e) > 0);
+  if (day.length < 2) return null;
+
+  const weightOf = liftedWeight;
+  // porovnávají se jen série na stejné váze — jinak by pokles opakování
+  // znamenal jen to, že se přidalo na ose
+  const first = day[0];
+  const same = day.filter((e) => Math.abs(weightOf(e) - weightOf(first)) < 0.01);
+  if (same.length < 2) return null;
+
+  const last = same.at(-1);
+  const fr = liftedReps(first);
+  const lr = liftedReps(last);
+  const repDrop = fr > 0 ? ((fr - lr) / fr) * 100 : null;
+  const rpeFirst = first.actualRpe ?? first.rpe;
+  const rpeLast = last.actualRpe ?? last.rpe;
+  const rpeJump = rpeFirst > 0 && rpeLast > 0 ? round(rpeLast - rpeFirst, 1) : null;
+
+  return {
+    weight: round(weightOf(first), 2),
+    sets: same.length,
+    firstReps: fr,
+    lastReps: lr,
+    repDrop: repDrop == null ? null : round(repDrop, 1),
+    rpeJump,
+    // kterákoli z obou podmínek stačí — měří totéž z jiné strany
+    stop: (repDrop != null && repDrop > 20) || (rpeJump != null && rpeJump >= 2),
+  };
 }
 
 /* =========================================================

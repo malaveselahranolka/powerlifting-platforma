@@ -17,6 +17,7 @@ import { glossaryView } from './views/glossary.js';
 import { realityView } from './views/reality.js';
 import { macroView } from './views/macro.js';
 import { readinessView } from './views/readiness.js';
+import { velocityView } from './views/velocity.js';
 import * as cloud from './cloud.js';
 
 const ROUTES = [
@@ -26,6 +27,7 @@ const ROUTES = [
   { id: 'rpe', label: 'RPE tabulka', ic: 'grid', title: 'RPE tabulka', sub: 'Opakování × RPE převedené na procenta a kilogramy.', view: rpeView },
   { id: 'plates', label: 'Kotouče', ic: 'disc', title: 'Nakládání osy', sub: 'Co skutečně naložíš s kotouči, které máš.', view: platesView },
   { id: 'apre', label: 'APRE', ic: 'zap', title: 'APRE', sub: 'Autoregulace podle skutečných opakování, ne podle pocitu.', view: apreView },
+  { id: 'rychlost', label: 'Rychlost', ic: 'gauge2', title: 'Rychlost tyče', sub: 'Profil zatížení a rychlosti, práh poklesu a bezpřístrojová obdoba.', view: velocityView },
   { group: 'Trénink' },
   { id: 'realita', label: 'Plán vs. realita', ic: 'target', title: 'Plán vs. realita', sub: 'Jak trénink dopadl proti tomu, jak byl napsaný.', view: realityView },
   { id: 'forma', label: 'Únava a forma', ic: 'activity', title: 'Únava a forma', sub: 'Model kondice a únavy, objemové mezníky a signál proti šumu.', view: readinessView },
