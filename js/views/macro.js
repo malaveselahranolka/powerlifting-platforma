@@ -21,7 +21,7 @@ export function macroView(nav) {
 function summarizeBlock(b, a) {
   const entries = S.blockEntries(b.id);
   const e1rm = S.blockE1rm(b, a);
-  const an = C.analyzeBlock(entries, e1rm, b.start);
+  const an = C.analyzeBlock(entries, e1rm, b.start, S.athleteVariants());
   const weeks = an.weeks;
   const avgTonnage = weeks.length ? weeks.reduce((s, w) => s + w.tonnage, 0) / weeks.length : 0;
   const peak = Math.max(0, ...weeks.map((w) => w.peakIntensity ?? 0));

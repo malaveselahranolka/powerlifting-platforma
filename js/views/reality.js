@@ -3,7 +3,7 @@ import { lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS } from '../data.js';
-import { W, U, Wu, liftDot, liftName, empty, rpeLabel } from './_util.js';
+import { W, U, Wu, liftDot, liftName, empty, flagRow, rpeLabel } from './_util.js';
 
 const st = { openWeek: null, filter: 'main' };
 
@@ -61,8 +61,16 @@ function build(root, render, nav) {
       return stat('Těžších, než plán', `${tezsi}`, `z ${done.length} zapsaných`);
     })(),
     (() => {
-      const real = done.map(C.setE1rm).filter(Boolean);
-      return stat('Nejlepší odhad 1RM', real.length ? W(Math.max(...real)) : '—', U());
+      // nejlepší den, ne nejlepší série — vážený odhad dne nenadhodnocuje
+      // jen proto, že se ten den zapsalo víc sérií
+      const byDay = new Map();
+      for (const e of done) {
+        const k = `${e.lift}|${e.date}`;
+        if (!byDay.has(k)) byDay.set(k, []);
+        byDay.get(k).push(e);
+      }
+      const peaks = [...byDay.values()].map((rows) => C.sessionE1rm(rows)?.weighted).filter(Boolean);
+      return stat('Nejlepší odhad 1RM', peaks.length ? W(Math.max(...peaks)) : '—', `${U()} · vážený odhad dne`);
     })()));
 
   if (!done.length) {
@@ -117,29 +125,66 @@ function build(root, render, nav) {
   }
 
   /* ---- vývoj odhadu maxima z reálných sérií ---- */
+  /*
+   * Z jednoho dne se bere vážený odhad, ne nejlepší série.
+   *
+   * Maximum z několika zašuměných odhadů je systematicky nadhodnocené: je to
+   * extrémní hodnota, ne odhad středu. Kdo zapíše osm sérií, dostane vyšší
+   * číslo než kdo zapíše dvě — i když zvedal totéž. Vážený průměr tenhle
+   * artefakt nemá a navíc dá větší váhu sériím, u kterých je RPE
+   * spolehlivější.
+   */
+  const dayStats = new Map();  // 'lift|date' → sessionE1rm
   const series = COMP_LIFTS.map((k) => {
-    const pts = done
-      .filter((e) => e.lift === k)
-      .map((e) => ({ date: e.date, value: C.setE1rm(e) }))
-      .filter((p) => p.value != null)
-      .sort((x, y) => x.date.localeCompare(y.date));
-    // z jednoho dne bere jen nejlepší sérii — jinak by graf skákal podle back-offů
-    const best = new Map();
-    for (const p of pts) best.set(p.date, Math.max(best.get(p.date) ?? 0, p.value));
-    return { color: LIFTS[k].color, label: LIFTS[k].label, lift: k, points: [...best.entries()].map(([date, value]) => ({ date, value: S.toDisplay(value) })) };
+    const byDate = new Map();
+    for (const e of done.filter((x) => x.lift === k)) {
+      if (!byDate.has(e.date)) byDate.set(e.date, []);
+      byDate.get(e.date).push(e);
+    }
+    const points = [];
+    for (const [date, rows] of [...byDate.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
+      const day = C.sessionE1rm(rows);
+      if (!day) continue;
+      dayStats.set(`${k}|${date}`, day);
+      points.push({ date, value: S.toDisplay(day.weighted) });
+    }
+    return { color: LIFTS[k].color, label: LIFTS[k].label, lift: k, points };
   }).filter((s) => s.points.length > 1);
 
   if (series.length) {
+    // o kolik by nejlepší série nadhodnotila proti váženému odhadu
+    const biased = [...dayStats.values()].filter((d) => d.n > 1);
+    const avgBias = biased.length
+      ? biased.reduce((s, d) => s + d.bias, 0) / biased.length
+      : 0;
+
     root.append(card('Odhad maxima ze skutečných sérií', {
-      eyebrow: `Nejlepší série každého dne · ${U()}`,
+      eyebrow: `Vážený odhad z každého dne · ${U()}`,
     },
       lineChart(series, { height: 210, fmt: (v) => num(v, 0), unit: U() }),
       h('div.split-legend',
         ...series.map((s) => h('div.split-item',
           h('i', { style: { background: s.color } }),
           h('span.split-name', LIFTS[s.lift].label)))),
-      h('p.note', 'Tohle je jediný graf v appce, který ukazuje skutečný výkon, ne plán. Roste-li, trénink funguje. Stojí-li při rostoucím objemu, něco nesedí — obvykle regenerace.')));
+      h('p.note', 'Tohle je jediný graf v appce, který ukazuje skutečný výkon, ne plán. Roste-li, trénink funguje. Stojí-li při rostoucím objemu, něco nesedí — obvykle regenerace.'),
+
+      biased.length > 0 && flagRow({
+        tone: 'low',
+        text: `Z každého dne se bere vážený odhad ze všech zapsaných sérií, ne ta nejlepší. `
+          + `Nejlepší série by ${biased.length === 1 ? 'ten den' : `na těch ${biased.length} dnech, kde je sérií víc,`} `
+          + `nadhodnotila v průměru o ${Wu(avgBias, 1)} — `
+          + 'maximum z několika zašuměných odhadů roste s počtem sérií, i když se síla nemění.',
+      }),
+
+      h('p.note', { style: { color: 'var(--ink-3)' } },
+        'Váhy jsou obrácené k rozptylu odhadu: trojka na RPE 9 nese mnohem víc informace než '
+        + 'desítka na RPE 6, u které se RPE odhaduje nejhůř (směrodatná odchylka 1,18 proti 0,32 '
+        + 'u těžkých sérií). Rozptyl podle intenzity měřil Zourdos a kol. (2016); samotné vážení '
+        + 'obráceně k rozptylu je standardní postup, ne konstrukce této appky.')));
   }
+
+  /* ---- relativní intenzita ---- */
+  root.append(relativeCard(done, S.blockE1rm(blk, a), S.athleteVariants(a)));
 
   /* ---- jednotky ---- */
   root.append(h('div.week-bar',
@@ -157,6 +202,106 @@ function build(root, render, nav) {
       }))));
 
   root.append(sessionEditor(scoped, blk, render));
+}
+
+/* =========================================================
+   Relativní intenzita
+   ========================================================= */
+
+/**
+ * Kolik procent to bylo z toho, co závodník zvládal *ten den*.
+ *
+ * Absolutní intenzita je jediné číslo, které appka dosud uměla: 170 kg je
+ * pořád 85 % z dvousetkilového maxima, ať je člověk čerstvý nebo rozbitý.
+ * Proti dennímu maximu to ale ve špatný den může být 92 % — a přesně proto
+ * ta série jela na RPE 9 místo osmičky.
+ *
+ * Rozdíl mezi těmi dvěma čísly je jméno pro to, čemu se v hovoru říká
+ * „špatný den". Tabulka ho ukazuje po dnech, protože jedna špatná středa
+ * nic neznamená a čtyři po sobě znamenají dost.
+ */
+function relativeCard(done, e1rms, variants) {
+  const gaps = C.intensityGap(done, e1rms, variants);
+
+  if (gaps.length < 2) {
+    return card('Relativní intenzita', { eyebrow: 'Procenta z denního maxima, ne z maxima na papíře' },
+      h('p.note',
+        'Zapiš skutečné RPE aspoň u dvou tréninkových dnů. Z nich se dá spočítat, co závodník ten den '
+        + 'zvládal — a tedy jestli naplánovaných 85 % bylo pro něj toho dne opravdu 85 %.'));
+  }
+
+  const shown = gaps.slice(-10);
+  const bad = gaps.filter((g) => g.gap >= 5).length;
+  const streak = (() => {
+    let n = 0;
+    for (const g of [...gaps].reverse()) { if (g.gap >= 2) n++; else break; }
+    return n;
+  })();
+
+  return card('Relativní intenzita', {
+    eyebrow: 'Procenta z denního maxima, ne z maxima na papíře',
+    class: 'is-flush',
+  },
+    h('div', { style: { padding: '0 24px 24px' } },
+      table(
+        ['Den', { label: `Denní max. (${U()})`, num: true }, { label: 'Absolutní', num: true },
+          { label: 'Relativní', num: true }, { label: 'Rozdíl', num: true }, 'Stav'],
+        shown.map((g) => {
+          const gr = C.gradeIntensityGap(g.gap);
+          return {
+            tone: gr.tone === 'bad' ? 'bad' : gr.tone === 'warn' ? 'warn' : null,
+            cells: [
+              h('b', weekday(g.date)),
+              {
+                num: true,
+                value: g.dayMax == null
+                  ? h('span.faint', { title: `${g.lifts} cviky — jedno maximum dne neexistuje` }, `${g.lifts} cviky`)
+                  : W(g.dayMax, 1),
+              },
+              { num: true, value: h('span.mono', `${fixed(g.absolute, 1)} %`) },
+              { num: true, value: h('b.mono', `${fixed(g.relative, 1)} %`) },
+              {
+                num: true,
+                value: h('b', {
+                  style: { color: g.gap >= 5 ? 'var(--bad)' : g.gap >= 2 ? 'var(--warn)' : g.gap <= -2 ? 'var(--info)' : 'var(--ink)' },
+                }, `${g.gap >= 0 ? '+' : '−'}${fixed(Math.abs(g.gap), 1)}`),
+              },
+              tag(gr.label, gr.tone),
+            ],
+          };
+        })),
+
+      streak >= 3 && flagRow({
+        tone: 'bad',
+        text: `${streak} dny po sobě byla stejná práce relativně těžší, než plán čekal. `
+          + 'Jeden takový den je šum; tohle už je posun formy — buď se hromadí únava, nebo maximum '
+          + 'v profilu přestalo platit. Zkontroluj obojí dřív, než se přidá objem.',
+      }),
+
+      streak < 3 && bad > 0 && flagRow({
+        tone: 'warn',
+        text: `${bad} ${bad === 1 ? 'den vyšel' : bad < 5 ? 'dny vyšly' : 'dnů vyšlo'} jako výrazně těžší, `
+          + 'než plán počítal, ale nejdou po sobě. Ojedinělý špatný den má obvykle příčinu mimo trénink — '
+          + 'spánek, jídlo, stres — a sám o sobě nic v plánu měnit nemusí.',
+      }),
+
+      streak === 0 && bad === 0 && flagRow({
+        tone: 'ok',
+        text: 'Denní maxima sedí na to, s čím plán počítá. Naplánovaná procenta odpovídají tomu, '
+          + 'co ta práce pro závodníka doopravdy znamená.',
+      }),
+
+      h('p.note',
+        h('b', 'Absolutní'), ' je procento z maxima v profilu — to, co je v plánu. ',
+        h('b', 'Relativní'), ' je procento z maxima, které závodník ten den skutečně měl, spočítaného '
+        + 'z jeho vlastních sérií. Když se ta dvě čísla rozejdou nahoru, znamená to, že plán ten den '
+        + 'sedl na horší formu, než se kterou počítal.'),
+
+      h('p.note', { style: { color: 'var(--ink-3)' } },
+        'Práce s denním maximem je jádro metody RTS (Tuchscherer). Hranice ±2 a ±5 procentních bodů, '
+        + 'na kterých se tady den označí za dobrý nebo špatný, ale publikované nejsou — jsou to prahy '
+        + 'této appky, zvolené tak, aby seděly na běžný rozptyl formy ze dne na den. Ber je jako '
+        + 'orientaci, ne jako změřenou mez.')));
 }
 
 /** Jeden řádek doporučení — čistě informativní, nic sám nepřepisuje. */

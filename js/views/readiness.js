@@ -115,7 +115,7 @@ function formCard(entries, today, nav) {
    2 · Denní připravenost z odchylky RPE
    ========================================================= */
 function readinessCard(entries, e1rms) {
-  const days = C.dailyReadiness(entries, e1rms);
+  const days = C.dailyReadiness(entries, e1rms, { variants: S.athleteVariants() });
   const last = days.at(-1);
   const g = C.gradeReadiness(last?.z);
 
@@ -168,7 +168,7 @@ function readinessCard(entries, e1rms) {
 function mrvCard(a, entries) {
   const blk = S.block();
   const creep = blk ? C.rpeCreep(S.blockEntries(blk.id), blk.start) : [];
-  const hs = blk ? C.hardSets(S.blockEntries(blk.id), S.blockE1rm(blk, a), blk.start) : [];
+  const hs = blk ? C.hardSets(S.blockEntries(blk.id), S.blockE1rm(blk, a), blk.start, S.athleteVariants(a)) : [];
 
   const sumSets = (w) => (w ? Object.values(w.lifts).reduce((s, v) => s + v, 0) : null);
   const today = S.iso(new Date());
@@ -462,7 +462,7 @@ function trendCard(a) {
    7 · Poměr podnětu k únavě
    ========================================================= */
 function sfrCard(a, entries, e1rms) {
-  const rows = COMP_LIFTS.map((k) => C.stimulusFatigue(entries, e1rms, k)).filter(Boolean);
+  const rows = COMP_LIFTS.map((k) => C.stimulusFatigue(entries, e1rms, k, S.athleteVariants())).filter(Boolean);
   if (!rows.length) return h('div');
 
   const best = rows.reduce((m, r) => (r.ratio > m.ratio ? r : m), rows[0]);

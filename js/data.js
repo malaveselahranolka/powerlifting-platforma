@@ -281,6 +281,47 @@ export const CUT_FACTS = {
   negativePsych: 70,
 };
 
+/* ---------- Varianty soutěžních cviků ----------
+   Pauzovaný dřep, deficitní tah nebo bench úzkým úchopem nemají vlastní
+   změřené maximum a nikdo je kvůli tomu netestuje — odvozují se procentem
+   ze soutěžního cviku. Bez toho spadnou do „doplňkových cviků" a vypadnou
+   z intenzity, INOL, Prilepina i tvrdých sérií podle intenzity, přestože
+   tvoří většinu práce v seriózním bloku.
+
+   POZOR: žádná recenzovaná tabulka těchhle koeficientů neexistuje. Jsou to
+   hodnoty z trenérské praxe a mezi zdroji se liší, u některých variant
+   klidně o deset procentních bodů. Slouží jako výchozí odhad, který se má
+   u konkrétního závodníka doladit — proto jdou v profilu přepsat.
+
+   `range` je rozptyl, který se v praxi uvádí, aby bylo poznat, kde je
+   shoda a kde ne. Nad 100 % jsou varianty se zkráceným rozsahem pohybu.  */
+export const VARIANTS = {
+  /* dřep */
+  pauseSquat: { label: 'Pauzovaný dřep', base: 'squat', pct: 0.88, range: [0.85, 0.90] },
+  boxSquat: { label: 'Box squat', base: 'squat', pct: 0.92, range: [0.90, 0.95] },
+  frontSquat: { label: 'Přední dřep', base: 'squat', pct: 0.82, range: [0.80, 0.85] },
+  tempoSquat: { label: 'Tempo dřep', base: 'squat', pct: 0.82, range: [0.80, 0.85] },
+  /* benčpres */
+  closeGrip: { label: 'Bench úzkým úchopem', base: 'bench', pct: 0.92, range: [0.90, 0.95] },
+  spotoPress: { label: 'Spoto press', base: 'bench', pct: 0.91, range: [0.90, 0.93] },
+  pinPress: { label: 'Pin press', base: 'bench', pct: 0.90, range: [0.88, 0.93] },
+  larsenPress: { label: 'Larsen press', base: 'bench', pct: 0.90, range: [0.88, 0.92] },
+  /* mrtvý tah */
+  deficitDeadlift: { label: 'Deficitní tah', base: 'deadlift', pct: 0.90, range: [0.88, 0.92] },
+  blockPull: { label: 'Tah z bloků', base: 'deadlift', pct: 1.07, range: [1.05, 1.10] },
+  rackPull: { label: 'Rack pull', base: 'deadlift', pct: 1.15, range: [1.10, 1.20] },
+  pauseDeadlift: { label: 'Pauzovaný tah', base: 'deadlift', pct: 0.88, range: [0.85, 0.90] },
+};
+
+/* ---------- Spolehlivost nahlášeného RPE ----------
+   Zourdos a kol. (2016): směrodatná odchylka nahlášeného RPE u zkušených
+   dřepařů podle relativní intenzity. Čím lehčí série, tím hůř se RPE
+   odhaduje — desítka na šestce nese skoro nulovou informaci.
+
+   Používá se k vážení odhadů maxima: série se spolehlivějším RPE má
+   v souhrnu větší váhu.                                                  */
+export const RPE_SD_BY_PCT = [[60, 1.18], [75, 0.97], [90, 0.92], [100, 0.32]];
+
 /* ---------- Rychlost tyče (VBT) ----------
    Průměrná propulzní rychlost v m·s⁻¹ podle relativní intenzity.
 

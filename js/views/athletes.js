@@ -2,7 +2,7 @@ import { h, card, stat, icon, num, fixed, tag, table, field, numInput, inputNum,
 import { lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { LIFTS, COMP_LIFTS } from '../data.js';
+import { LIFTS, COMP_LIFTS, VARIANTS } from '../data.js';
 import { W, U, Wu, initials, liftDot, empty } from './_util.js';
 import * as cloud from '../cloud.js';
 
@@ -112,6 +112,8 @@ function build(root, render, nav) {
           stat('Kategorie', wc.label, null),
           stat('Trend', t ? `${t.perWeek >= 0 ? '+' : ''}${num(t.perWeek, 2)}` : '—', `${U()} / týden`));
       })())));
+
+  root.append(variantCard(a, render));
 
   /* ---- historie maxim ---- */
   const logs = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id).sort((x, y) => y.date.localeCompare(x.date));
@@ -345,6 +347,99 @@ function newAthleteForm(render) {
     h('div.btn-row',
       h('button.btn.btn-primary', { onclick: save }, icon('check', 16), 'Založit svěřence'),
       h('span.faint', { style: { fontSize: '12.5px' } }, 'Blok mu postavíš hned potom ve Stavbě bloku.')));
+}
+
+/* =========================================================
+   Koeficienty variant
+   ========================================================= */
+
+/**
+ * Přepis procent u variant soutěžních cviků.
+ *
+ * Výchozí čísla jsou trenérská konvence, ne měření — v literatuře pro ně
+ * není recenzovaná tabulka a mezi zdroji se u některých variant liší
+ * klidně o deset procentních bodů. U konkrétního člověka to rozhoduje
+ * technika a stavba: kdo má dlouhé stehno, ztratí v pauzovaném dřepu víc
+ * než kdo má krátké.
+ *
+ * Proto se dá každé procento přepsat. Prázdné pole = zpátky na výchozí.
+ */
+function variantCard(a, render) {
+  const own = S.athleteVariants(a);
+  const e1rms = a.e1rm ?? {};
+  const byBase = COMP_LIFTS.map((base) => ({
+    base,
+    rows: Object.entries(VARIANTS).filter(([, v]) => v.base === base),
+  })).filter((g) => g.rows.length);
+
+  const n = Object.keys(own).length;
+
+  return card('Koeficienty variant', {
+    eyebrow: n ? `${n} ${n === 1 ? 'přepsaný' : n < 5 ? 'přepsané' : 'přepsaných'} z ${Object.keys(VARIANTS).length}` : 'Výchozí hodnoty z trenérské praxe',
+    class: 'is-flush',
+    action: n > 0 && h('button.btn.btn-sm', {
+      onclick: () => {
+        if (!confirm('Vrátit všechny koeficienty na výchozí hodnoty?')) return;
+        for (const k of Object.keys(own)) S.setVariantPct(a.id, k, null);
+        toast('Koeficienty vráceny na výchozí');
+        render();
+      },
+    }, 'Vrátit vše na výchozí'),
+  },
+    h('div', { style: { padding: '0 24px 24px' } },
+      h('p.note', { style: { marginTop: 0 } },
+        'Varianta nemá vlastní změřené maximum a nikdo ji kvůli tomu netestuje — odvozuje se procentem '
+        + 'ze soutěžního cviku. Bez toho by pauzovaný dřep spadl mezi doplňky a vypadl z intenzity, '
+        + 'INOL, Prilepina i tvrdých sérií, přestože tvoří většinu práce v seriózním bloku.'),
+
+      ...byBase.map((g) => h('div', { style: { marginTop: '18px' } },
+        h('div.eyebrow', { style: { marginBottom: '8px' } },
+          liftDot(g.base), ' ', LIFTS[g.base].label, e1rms[g.base] > 0 ? ` · ${Wu(e1rms[g.base], 0)}` : ' · bez maxima'),
+        table(
+          ['Varianta', { label: 'Koeficient (%)', num: true }, { label: 'V praxi', num: true }, { label: `Odvozené max. (${U()})`, num: true }, ''],
+          g.rows.map(([key, v]) => {
+            const custom = own[key];
+            const pct = custom ?? v.pct;
+            const derived = e1rms[g.base] > 0 ? e1rms[g.base] * pct : null;
+            return {
+              tone: custom != null ? 'ok' : null,
+              cells: [
+                h('span', v.label),
+                {
+                  num: true,
+                  value: numInput({
+                    value: inputNum(pct * 100, 1), step: 0.5, min: 30, max: 150,
+                    class: 'inline-input', style: { width: '72px' },
+                    'aria-label': `Koeficient — ${v.label}`,
+                    onchange: (e) => {
+                      const raw = e.target.value.trim();
+                      if (raw === '') { S.setVariantPct(a.id, key, null); render(); return; }
+                      const val = Number(raw.replace(',', '.'));
+                      if (!(val > 0)) { render(); return; }
+                      // zapisuje se jen skutečná změna, ať se profil nezaplní
+                      // hodnotami, které se rovnají výchozím
+                      const next = C.round(val / 100, 4);
+                      S.setVariantPct(a.id, key, Math.abs(next - v.pct) < 0.0005 ? null : next);
+                      render();
+                    },
+                  }),
+                },
+                { num: true, value: h('span.faint.mono', { style: { fontSize: '11.5px' } }, `${num(v.range[0] * 100, 0)}–${num(v.range[1] * 100, 0)}`) },
+                { num: true, value: derived ? h('b', W(derived, 1)) : h('span.faint', '—') },
+                custom != null
+                  ? h('button.btn.btn-ghost.btn-sm', {
+                      title: `Vrátit na výchozí ${num(v.pct * 100, 1)} %`,
+                      onclick: () => { S.setVariantPct(a.id, key, null); render(); },
+                    }, icon('x', 13))
+                  : h('span.faint', { style: { fontSize: '11px' } }, 'výchozí'),
+              ],
+            };
+          })))),
+
+      h('p.note', { style: { marginTop: '18px', color: 'var(--ink-3)' } },
+        'Sloupec „v praxi" je rozptyl, který se mezi zdroji uvádí — ukazuje, kde je shoda a kde ne. '
+        + 'Kdo si variantu jednou otestuje, přepíše si procento a od té chvíle appka počítá jeho číslo. '
+        + 'Nad 100 % jsou varianty se zkráceným rozsahem pohybu, kde se zvedne víc než v soutěžním provedení.')));
 }
 
 function logBw(a, render) {

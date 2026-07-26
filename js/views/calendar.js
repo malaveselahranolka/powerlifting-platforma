@@ -2,7 +2,7 @@ import { h, card, stat, icon, num, fixed, bigNum, tag, table, field, numInput, s
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS, WEEKDAY_LABELS } from '../data.js';
-import { W, U, Wu, liftDot, liftName, empty, flagRow, rpeLabel } from './_util.js';
+import { W, U, Wu, liftDot, liftName, empty, flagRow, rpeLabel, variantOptions } from './_util.js';
 
 /**
  * Kalendář a plánování jednotek.
@@ -50,14 +50,15 @@ function build(root, render, nav) {
   const meets = S.athleteMeets(a.id);
   const blocks = S.athleteBlocks(a.id);
   const e1rms = a.e1rm ?? {};
+  const variants = S.athleteVariants(a);
 
   if (!st.selected) st.selected = pickDay(entries, today);
 
-  root.append(monthCard(a, cy, cm, entries, meets, blocks, e1rms, today, render));
+  root.append(monthCard(a, cy, cm, entries, meets, blocks, e1rms, variants, today, render));
   root.append(h('div.grid.g-side',
-    sessionCard(a, st.selected, e1rms, render, nav),
+    sessionCard(a, st.selected, e1rms, variants, render, nav),
     h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-      rhythmCard(entries, blocks, e1rms),
+      rhythmCard(entries, blocks, e1rms, variants),
       upcomingCard(entries, meets, today, render))));
 }
 
@@ -73,7 +74,7 @@ function pickDay(entries, today) {
 /* =========================================================
    Měsíční mřížka
    ========================================================= */
-function monthCard(a, cy, cm, entries, meets, blocks, e1rms, today, render) {
+function monthCard(a, cy, cm, entries, meets, blocks, e1rms, variants, today, render) {
   const first = new Date(cy, cm - 1, 1);
   const daysInMonth = new Date(cy, cm, 0).getDate();
   // pondělí = 0
@@ -101,7 +102,7 @@ function monthCard(a, cy, cm, entries, meets, blocks, e1rms, today, render) {
   for (let day = 1; day <= daysInMonth; day++) {
     const date = `${cy}-${String(cm).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dayEntries = byDate.get(date) ?? [];
-    const sum = C.sessionSummary(dayEntries, e1rms);
+    const sum = C.sessionSummary(dayEntries, e1rms, variants);
     const meet = meetBy.get(date);
     const blk = blocks.find((b) => date >= b.start && C.daysBetween(b.start, date) < b.weeks * 7);
 
@@ -167,9 +168,9 @@ function monthCard(a, cy, cm, entries, meets, blocks, e1rms, today, render) {
 /* =========================================================
    Detail jednotky
    ========================================================= */
-function sessionCard(a, date, e1rms, render, nav) {
+function sessionCard(a, date, e1rms, variants, render, nav) {
   const rows = S.dayEntries(date, a.id);
-  const sum = C.sessionSummary(rows, e1rms);
+  const sum = C.sessionSummary(rows, e1rms, variants);
   const isPast = date < S.iso(new Date());
 
   const head = h('div.btn-row',
@@ -246,11 +247,40 @@ function sessionCard(a, date, e1rms, render, nav) {
 }
 
 function addForm(a, date, render) {
-  const draft = { lift: 'squat', name: '', sets: 3, reps: 5, weight: 100, rpe: 8 };
+  const draft = { lift: 'squat', variant: '', name: '', sets: 3, reps: 5, weight: 100, rpe: 8 };
   const blk = S.athleteBlocks(a.id).find((b) => date >= b.start && C.daysBetween(b.start, date) < b.weeks * 7)
     ?? S.block();
+  const variants = S.athleteVariants(a);
 
+  /** Maximum, proti kterému se počítá váha — u varianty odvozené. */
+  const refMax = () => C.entryE1rm({ lift: draft.lift, variant: draft.variant || null }, a.e1rm, variants);
+
+  const weightField = h('div');
   const nameField = h('div');
+  const variantField = h('div');
+
+  const syncWeight = () => {
+    const max = refMax();
+    if (max > 0) draft.weight = C.roundToBar(C.weightFor(max, draft.reps, draft.rpe) ?? draft.weight);
+    clear(weightField);
+    weightField.append(field(`Váha (${U()})`, numInput({
+      value: S.toDisplay(draft.weight), step: 2.5, min: 0,
+      oninput: (e) => { draft.weight = S.fromDisplay(Number(e.target.value) || 0); },
+    }), max > 0 && draft.variant ? `Z odvozeného maxima ${Wu(max)}` : null));
+  };
+
+  const syncVariant = () => {
+    clear(variantField);
+    const opts = draft.lift === 'accessory' ? [] : variantOptions(draft.lift);
+    if (opts.length <= 1) return;
+    variantField.append(field('Provedení', select(opts, {
+      value: draft.variant,
+      onchange: (e) => { draft.variant = e.target.value; syncVariant(); syncWeight(); },
+    }), draft.variant
+      ? 'Počítá se proti odvozenému maximu, ne proti soutěžnímu'
+      : null));
+  };
+
   const syncName = () => {
     clear(nameField);
     if (draft.lift === 'accessory') {
@@ -260,7 +290,9 @@ function addForm(a, date, render) {
       })));
     }
   };
+  syncVariant();
   syncName();
+  syncWeight();
 
   return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '4px' } },
     h('div.form-row',
@@ -268,20 +300,18 @@ function addForm(a, date, render) {
         value: draft.lift,
         onchange: (e) => {
           draft.lift = e.target.value;
-          if (draft.lift !== 'accessory' && a.e1rm[draft.lift] > 0) {
-            draft.weight = C.roundToBar(C.weightFor(a.e1rm[draft.lift], draft.reps, draft.rpe) ?? 100);
-          }
+          draft.variant = '';
+          syncVariant();
           syncName();
+          syncWeight();
         },
       })),
       field('Sérií', numInput({ value: draft.sets, step: 1, min: 1, oninput: (e) => { draft.sets = Number(e.target.value) || 1; } })),
       field('Opakování', numInput({ value: draft.reps, step: 1, min: 1, oninput: (e) => { draft.reps = Number(e.target.value) || 1; } }))),
+    variantField,
     nameField,
     h('div.form-row',
-      field(`Váha (${U()})`, numInput({
-        value: S.toDisplay(draft.weight), step: 2.5, min: 0,
-        oninput: (e) => { draft.weight = S.fromDisplay(Number(e.target.value) || 0); },
-      })),
+      weightField,
       field('RPE', decimalInput({
         value: String(draft.rpe).replace('.', ','),
         onvalue: (v) => { draft.rpe = v; },
@@ -292,7 +322,8 @@ function addForm(a, date, render) {
           if (!(draft.weight > 0)) { toast('Zadej váhu', 'bad'); return; }
           S.addEntry({
             blockId: blk?.id ?? null, athleteId: a.id, date,
-            lift: draft.lift, name: draft.lift === 'accessory' ? (draft.name || 'Doplňkový cvik') : null,
+            lift: draft.lift, variant: draft.variant || null,
+            name: draft.lift === 'accessory' ? (draft.name || 'Doplňkový cvik') : null,
             sets: draft.sets, reps: draft.reps, weight: draft.weight,
             rpe: draft.rpe > 0 ? draft.rpe : null,
           });
@@ -308,7 +339,7 @@ function addForm(a, date, render) {
 /* =========================================================
    Rytmus týdne
    ========================================================= */
-function rhythmCard(entries, blocks, e1rms) {
+function rhythmCard(entries, blocks, e1rms, variants) {
   const blk = blocks.at(-1);
   const scoped = blk ? entries.filter((e) => e.blockId === blk.id) : entries;
   if (!scoped.length) {
@@ -317,7 +348,7 @@ function rhythmCard(entries, blocks, e1rms) {
   }
 
   const freq = C.liftFrequency(scoped, blk?.start ?? scoped[0].date);
-  const spacing = C.heavySpacing(scoped, e1rms);
+  const spacing = C.heavySpacing(scoped, e1rms, { variants });
   const tight = spacing.filter((s) => s.tight > 0);
 
   return card('Rytmus týdne', {

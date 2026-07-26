@@ -55,15 +55,15 @@ frekvence na cvik, rozestupy těžkých expozic a sestavování doporučení.
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
 | **Rychlost** | Profil zatížení a rychlosti, odhad maxima z profilu, práh poklesu v sérii a bezpřístrojová obdoba z deníku |
 | **Kalendář** | Jednotky v čase — měsíční mřížka, přesun tažením, přidávání a mazání cviků, kopírování jednotky, frekvence na cvik a rozestupy těžkých jednotek |
-| **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučení podle skutečného výkonu |
+| **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, vážený odhad maxima ze skutečných sérií, relativní intenzita k dennímu maximu, doporučení podle skutečného výkonu |
 | **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, interval spolehlivosti a robustní odhad trendu, detekce zlomu, poměr podnětu k únavě, rozložení součtu proti elitě |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
 | **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek; hotové šablony (5/3/1 s dopočítanými váhami, kostra makrocyklu, popis dalších) |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík, časová osa podle pořadí v nominaci, ladění formy ve třech modelech, kalkulačka shazování váhy, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, percentily relativní síly, vliv tělesné váhy na koeficient |
-| **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 52 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, přepis koeficientů variant, zálohy |
+| **Vysvětlivky** | 55 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 
@@ -112,9 +112,15 @@ frekvence na cvik, rozestupy těžkých expozic a sestavování doporučení.
 | DOTS | součet × 500 ÷ polynom 4. stupně | ověřeno proti OpenPowerlifting |
 | IPF GL | součet × 100 ÷ (A − B·e^(−C·bw)) | IPF, koeficienty od 1. 5. 2020 |
 | Wilks | součet × 500 ÷ polynom 5. stupně | Wilks (1994) |
+| Relativní intenzita | váha ÷ maximum toho dne × 100 | jádro metody RTS (Tuchscherer); pásma ±2 a ±5 jsou prahy appky |
+| Vážený odhad maxima dne | Σ(hodnota ÷ σ²) ÷ Σ(1 ÷ σ²), σ = rozptyl RPE podle intenzity | Zourdos a kol. (2016) pro σ; vážení obráceně k rozptylu je standardní statistika |
+| Koeficienty variant | maximum varianty = maximum soutěžního cviku × koeficient | trenérská praxe, žádná recenzovaná tabulka — v profilu přepsatelné |
 
 Doplňkové cviky nemají 1RM, takže se počítají jen do tonáže — do intenzity,
-INOL, Prilepinových zón ani tvrdých sérií nevstupují.
+INOL, Prilepinových zón ani tvrdých sérií nevstupují. Varianty soutěžních cviků
+(pauzovaný dřep, deficitní tah, bench úzkým úchopem a další) do nich naopak
+vstupují: dostanou odvozené maximum a počítají se proti němu, ne proti maximu
+soutěžního cviku.
 
 ## Kde appka záměrně nedělá, že ví víc, než ví
 
@@ -150,6 +156,19 @@ k porovnání cviků jednoho člověka mezi sebou, ne k závěrům z absolutní 
 **Percentily síly.** Ověřit se podařilo jen 90. percentil a jen pro dvě věkové
 skupiny. Appka proto neříká „jsi na 63. percentilu" — dopočítat zbytek tabulky
 interpolací a vydávat ho za data by byl výmysl.
+
+**Koeficienty variant.** Recenzovaná tabulka procent pro pauzovaný dřep,
+deficitní tah nebo bench úzkým úchopem neexistuje. Výchozí hodnoty v appce jsou
+trenérská konvence a mezi zdroji se u některých variant liší i o deset
+procentních bodů — proto je u každé vidět rozptyl, který se v praxi uvádí,
+a proto jde každá v profilu svěřence přepsat. Alternativa (nechat varianty mezi
+doplňky) je horší: vypadla by z analýzy většina práce v bloku.
+
+**Pásma relativní intenzity.** Že se má pracovat proti dennímu maximu, je jádro
+metody RTS. Že rozdíl +2 procentní body znamená „těžší den" a +5 „špatný den",
+publikované nikde není — jsou to prahy této appky, zvolené tak, aby seděly na
+běžný rozptyl formy ze dne na den. Samotný rozdíl je poctivé číslo, jeho
+zaškatulkování do pásem je odhad.
 
 **Šablony.** Váhy appka počítá jen u 5/3/1. Texas, vlnové zatížení a denní
 maxima jsou tu jako popis: ani jedno nemá přímou evidenci a u denních maxim je
