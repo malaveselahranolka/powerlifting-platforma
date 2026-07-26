@@ -1,11 +1,15 @@
-import { h, card, stat, icon, num, tag, table, field, numInput, select, segmented, clear, longDate } from '../ui.js';
-import { barbell } from '../charts.js';
+import { h, card, stat, icon, num, fixed, tag, table, field, numInput, select, segmented, clear, longDate } from '../ui.js';
+import { barbell, lineChart } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
-import { ATTEMPT_STRATEGY, ATTEMPT_JUMPS, LIFTS, COMP_LIFTS } from '../data.js';
-import { W, U, Wu, liftDot, empty } from './_util.js';
+import { ATTEMPT_STRATEGY, ATTEMPT_JUMPS, LIFTS, COMP_LIFTS, TAPER_MODELS, TAPER_REFERENCE, MEET_TIMING, CUT_FACTS } from '../data.js';
+import { W, U, Wu, liftDot, empty, flagRow } from './_util.js';
 
-const st = { strategy: 'standard', date: null, overrides: {}, lift: 'squat' };
+const st = {
+  strategy: 'standard', date: null, overrides: {}, lift: 'squat',
+  taperModel: 'exponential',
+  flightStart: '10:00', lifterOrder: 5, flightSize: 12, minPerAttempt: 1, warmupSets: 5,
+};
 
 export function meetView(nav) {
   const root = h('div.view');
@@ -141,6 +145,9 @@ function build(root, render, nav) {
   })()));
 
   /* ---- cíle ---- */
+  root.append(h('div.grid.g-side', timelineCard(plan, render), cutCard(a, wc)));
+  if (st.date) root.append(taperCard(st.date, render));
+
   root.append(card('Kam to míří', { eyebrow: 'Skóre při různých součtech', class: 'is-flush' },
     h('div', { style: { padding: '0 24px 24px' } },
       table(
@@ -191,4 +198,169 @@ function bump(lift, idx, deltaKg, plan) {
   const next = [...plan[lift]];
   next[idx] = C.roundToBar(next[idx] + deltaKg, { unit: 'kg' });
   st.overrides[lift] = next;
+}
+
+/* =========================================================
+   Časová osa závodního dne
+   ========================================================= */
+function timelineCard(plan, render) {
+  const tl = C.meetTimeline({
+    flightStart: st.flightStart, lifterOrder: st.lifterOrder, flightSize: st.flightSize,
+    minPerAttempt: st.minPerAttempt, warmupSets: st.warmupSets, lift: st.lift,
+  });
+
+  const numField = (label, key, opts) => field(label, numInput({
+    value: st[key], ...opts,
+    oninput: (e) => { const v = Number(e.target.value); if (v > 0) { st[key] = v; render(); } },
+  }));
+
+  return card('Kdy začít rozcvičku', {
+    eyebrow: 'Počítá se pozpátku od prvního pokusu',
+    action: segmented(COMP_LIFTS.map((k) => ({ value: k, label: LIFTS[k].short })), st.lift,
+      (v) => { st.lift = v; render(); }),
+  },
+    h('div.form-row',
+      field('Start flighty', h('input.input', {
+        type: 'time', value: st.flightStart,
+        onchange: (e) => { st.flightStart = e.target.value || '10:00'; render(); },
+      })),
+      numField('Pořadí v nominaci', 'lifterOrder', { step: 1, min: 1 }),
+      numField('Závodníků ve flightě', 'flightSize', { step: 1, min: 1 })),
+    h('div.form-row',
+      numField('Minut na pokus', 'minPerAttempt', { step: 0.1, min: 0.5 }),
+      numField('Rozcvičovacích sérií', 'warmupSets', { step: 1, min: 2 })),
+
+    !tl ? h('p.note', 'Zadej platný čas startu.') : h('div',
+      table(
+        ['Kdy', 'Co'],
+        [
+          { tone: 'low', cells: [h('b', tl.warmupStart), `Začít rozcvičovat — ${st.warmupSets} sérií po ${MEET_TIMING.restBetweenWarmups} minutách`] },
+          { tone: 'warn', cells: [h('b', tl.lastWarmup), `Poslední rozcvičovací série, pod ${Math.round(MEET_TIMING.lastWarmupMaxPct * 100)} % otvíráku (${Wu(plan[st.lift][0] * MEET_TIMING.lastWarmupMaxPct)})`] },
+          { tone: 'ok', cells: [h('b', tl.attempts[0]), `1. pokus · ${Wu(plan[st.lift][0])}`] },
+          { cells: [h('b', tl.attempts[1]), `2. pokus · ${Wu(plan[st.lift][1])}`] },
+          { cells: [h('b', tl.attempts[2]), `3. pokus · ${Wu(plan[st.lift][2])}`] },
+        ]),
+      h('div.grid.g3', { style: { marginTop: '12px' } },
+        stat('Kolo trvá', `${tl.roundMin}`, 'minut'),
+        stat('Mezi pokusy', `${tl.betweenAttempts}`, 'minut'),
+        stat('Okno rozcvičky', `${tl.warmupWindow}`, 'minut'))),
+
+    h('p.note',
+      'Poslední rozcvičovací série má padnout zhruba deset závodníků před vlastním pokusem — dost blízko, '
+      + 'aby se nevychladlo, dost daleko, aby se stihlo dojít na plac. Mezi pokusy uplyne celé kolo, '
+      + 'takže na druhý a třetí pokus se rozcvičovat nemusí.'),
+
+    h('div.flag', { dataset: { tone: 'low' } },
+      icon('info', 16),
+      h('span', h('b', 'Všechna čísla jsou trenérská praxe, ne měření.'), ' '
+        + 'Skutečné tempo závodu kolísá s nároky a technickými přestávkami — proto je minuta na pokus '
+        + 'k přenastavení. Na velkých závodech se vyplatí připočíst rezervu.')));
+}
+
+/* =========================================================
+   Taper
+   ========================================================= */
+/** „2026-08-29" → „29. 8." — slice na ISO řetězec dával americké pořadí. */
+const dm = (isoStr) => {
+  const [, mo, da] = isoStr.split('-');
+  return `${Number(da)}. ${Number(mo)}.`;
+};
+
+function taperCard(meetDate, render) {
+  const plan = C.taperPlan(meetDate, { model: st.taperModel, baseVolume: 100 });
+  if (!plan) return h('div');
+  const g = C.gradeTaperDrop(plan.finalDrop);
+
+  const chart = lineChart([{
+    color: 'var(--series-1)', label: 'Objem',
+    points: plan.days_.map((d) => ({ date: d.date, value: d.volume })),
+  }], { height: 170, fmt: (v) => `${num(v, 0)} %`, unit: '% výchozího objemu' });
+
+  return card('Ladění formy', {
+    eyebrow: `${plan.days} dnů do závodu · intenzita zůstává, ubírá se práce`,
+    action: segmented(Object.entries(TAPER_MODELS).map(([k, v]) => ({ value: k, label: v.label })), st.taperModel,
+      (v) => { st.taperModel = v; render(); }),
+  },
+    h('div.grid.g4',
+      stat('Začátek taperu', dm(plan.start), `${plan.days} dnů předem`),
+      stat('Konečný pokles objemu', `${plan.finalDrop}`, '%', g.tone === 'ok' ? 'ok' : 'warn'),
+      stat('Vrchol intenzity', dm(plan.intensityPeak), `${TAPER_REFERENCE.intensityPeakDaysBefore.mean} dnů předem`),
+      stat('Poslední trénink', dm(plan.lastSession), '4 dny předem')),
+
+    chart,
+
+    h('p.note', plan.note),
+    plan.warn && h('div.flag', { dataset: { tone: 'warn' } }, icon('alert', 16), h('span', plan.warn)),
+
+    flagRow({
+      tone: g.tone,
+      text: `${g.label}. Šampioni v průzkumu ubírali ${fixed(TAPER_REFERENCE.volumeDrop.mean, 1)} ± ${fixed(TAPER_REFERENCE.volumeDrop.sd, 1)} % objemu `
+        + `a taper jim trval kolem ${fixed(TAPER_REFERENCE.lengthWeeks, 1)} týdne.`,
+    }),
+
+    h('p.note',
+      'Nejdůležitější a nejčastěji porušené pravidlo taperu: ubírá se práce, ne váha na ose. '
+      + 'Kdo v posledním týdnu sjede i procenta, přijde o formu, ne o únavu.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      `Referenční čísla pocházejí z dotazníku mezi ${TAPER_REFERENCE.n} chorvatskými šampiony (Grgic a Mikulic 2017) — `
+      + 'popisují, co šampioni dělají, ne důkaz, že je to nejlepší možné. Rozdíl mezi modely změřil řízený pokus '
+      + '(Frontiers in Physiology 2021): dřep a bench vyšly srovnatelně, ale mrtvý tah u krokového taperu '
+      + 'nevzrostl vůbec, zatímco u exponenciálního o 8 %. Obě skupiny přitom odvedly stejnou celkovou práci.'));
+}
+
+/* =========================================================
+   Shazování váhy
+   ========================================================= */
+function cutCard(a, wc) {
+  if (wc.limit === Infinity) {
+    return card('Shazování váhy', { eyebrow: 'Nejtěžší kategorie' },
+      h('p.note', 'V nejtěžší kategorii se neshazuje — horní hranice není.'));
+  }
+  const cut = C.cutPlan({ bw: a.bw, limit: wc.limit });
+  if (!cut) return h('div');
+
+  if (cut.need === 0) {
+    return card('Shazování váhy', { eyebrow: `Kategorie ${wc.label}`, action: tag('Sedí', 'ok') },
+      h('div.grid.g2',
+        stat('Do limitu zbývá', W(cut.headroom, 1), U()),
+        stat('Typický shoz v poli', `${fixed(CUT_FACTS.typicalPct, 1)}`, '% hmotnosti')),
+      h('p.note', 'Váha sedí do kategorie. Není co řešit.'));
+  }
+
+  return card('Shazování váhy', {
+    eyebrow: `Do kategorie ${wc.label}`,
+    action: tag(cut.band.label, cut.band.tone),
+  },
+    h('div.grid.g3',
+      stat('Shodit', W(cut.need, 1), U(), cut.band.tone === 'bad' ? 'bad' : cut.band.tone === 'warn' ? 'warn' : null),
+      stat('Podíl hmotnosti', `${fixed(cut.needPct, 1)}`, '%'),
+      stat('Proti typickému shozu', `${cut.vsTypical >= 0 ? '+' : '−'}${fixed(Math.abs(cut.vsTypical), 1)}`, 'procentního bodu')),
+
+    flagRow({ tone: cut.band.tone, text: cut.band.note }),
+
+    table(
+      ['Odkud', { label: `Kolik (${U()})`, num: true }, 'Jak'],
+      [
+        ['Dieta a vyprázdnění', { num: true, value: W(cut.passive, 1) }, 'První dvě procenta jdou srazit bez akutní dehydratace.'],
+        ['Voda', { num: true, value: W(cut.water, 1) }, cut.water > 0 ? 'Zbytek už je akutní shoz tekutin. Tady je riziko.' : 'Není potřeba.'],
+      ]),
+
+    h('div.flag', { dataset: { tone: 'warn' } },
+      icon('alert', 16),
+      h('span', h('b', 'Tohle není návod, jak shazovat.'), ' '
+        + 'Appka spočítá rozdíl a řekne, kde jsou hranice. Samotný postup má vést někdo, kdo na to má vzdělání — '
+        + 'protokoly na vodní nálož kolující po internetu jsou z velké části bez dobré evidence a nesou reálné '
+        + 'riziko hyponatremie.')),
+
+    h('p.note',
+      `Shazuje ${CUT_FACTS.prevalence} % trojbojařů, typicky ${fixed(CUT_FACTS.typicalPct, 1)} % hmotnosti. `
+      + `Na regionálních závodech se shazuje víc než na mezinárodních (${fixed(CUT_FACTS.regional, 1)} proti ${fixed(CUT_FACTS.international, 1)} %). `
+      + `Zhruba ${CUT_FACTS.negativePsych} % závodníků přitom popisuje psychický dopad jako negativní — únavu, úzkost, podrážděnost.`),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Zásadní proměnná, kterou appka nezná, je čas mezi vážením a startem: IPF váží dvě hodiny předem, '
+      + 'jiné federace čtyřiadvacet. Řízený pokus ukázal, že při zhruba pěti procentech a dostatečné regeneraci '
+      + 'se maximální síla udrží — bez toho času ale ta věta neplatí. Ověř si pravidlo v aktuálním rulebooku '
+      + 'své federace. Data: Campbell a kol. (2025).'));
 }

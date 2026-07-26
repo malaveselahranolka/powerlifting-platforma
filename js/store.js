@@ -59,6 +59,10 @@ function seed() {
         sets: w.sets, reps: w.reps, rpe: w.rpe,
         weight: roundToBar(weightFor(e1rm[d.main], w.reps, w.rpe)),
         actualRpe: wi < 3 ? w.rpe + (wi === 2 ? 0.5 : 0) : null,
+        // třetí týden se u hlavního cviku o kus neuzvedl — přesně ten případ,
+        // kvůli kterému se plán a skutečnost nesmí přepisovat navzájem
+        actualWeight: wi === 2 ? roundToBar(weightFor(e1rm[d.main], w.reps, w.rpe) * 0.96) : null,
+        actualReps: null,
       });
 
       entries.push({

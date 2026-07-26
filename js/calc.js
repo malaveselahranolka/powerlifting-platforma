@@ -1,9 +1,12 @@
 // Veškerá matematika. Čisté funkce, žádný DOM.
 
 import {
-  RPE_SEQ, RPE_STEPS, PRILEPIN, INOL_SESSION, INOL_WEEK,
+  RPE_SEQ, RPE_STEPS, PRILEPIN,
   DOTS_COEF, IPF_GL_COEF, WILKS_COEF, WEIGHT_CLASSES,
   PLATES_KG, PLATES_LB, SBD_RATIOS, AGE_COEFF, AGE_COEFF_SOLID,
+  LOAD_VELOCITY, MVT, VELOCITY_LOSS, T95,
+  TAPER_MODELS, TAPER_REFERENCE, MEET_TIMING, ATTEMPT_BENCHMARK,
+  STRENGTH_P90, SHEIKO_NORMS, WENDLER_531, CUT_BANDS, CUT_FACTS,
 } from './data.js';
 
 export const LB_PER_KG = 2.2046226218;
@@ -79,6 +82,29 @@ export const E1RM = {
   rpe: (w, r, rpe) => {
     const pct = rpeToPct(r, rpe);
     return pct == null ? null : (w / pct) * 100;
+  },
+  /**
+   * Marzagão (2026), arXiv:2603.17495 — optimalizováno na 303 494 sérií
+   * blízko selhání. Jako jediná z těch osmi ví, že 20 kg × 10 a 200 kg × 10
+   * nejsou totéž: převodní faktor závisí na velikosti zátěže.
+   *
+   * Rovnice obsahuje ln(w), takže je závislá na jednotkách — abstrakt je
+   * neuvádí. Ověřil jsem je proti kontrolním hodnotám z rešerše: pro 100 kg
+   * na 5 opakování vychází 117,5 a pro 40 kg na 10 opakování 58,0, což obojí
+   * sedí. Jednotka je tedy kilogram a appka do rovnice vždycky posílá kg,
+   * i když se na obrazovce ukazují libry.
+   *
+   * Jmenovatel je záporný pod 1,75 kg, proto ten ořez.
+   *
+   * Preprint, nerecenzovaný, a optimalizovaný na vnitřní konzistenci, ne
+   * proti změřeným maximům — v datech žádná skutečná maxima nebyla. Proto
+   * je to volitelná osmá varianta, ne výchozí.
+   */
+  weightDependent: (w, r) => {
+    if (!(w > 1.75) || !(r >= 1)) return null;
+    const denom = -2.55 + 4.58 * Math.log(w);
+    if (!(denom > 0)) return null;
+    return w * (1 + (r - 1) ** 0.85 / denom);
   },
 };
 
@@ -156,14 +182,28 @@ export function roundToBar(weight, { unit = 'kg', step = null } = {}) {
    Metriky bloku
    ========================================================= */
 
+/**
+ * Váha, se kterou se počítá.
+ *
+ * Plán a skutečnost jsou dvě různá čísla a appka si je nepřepisuje: `weight`
+ * drží, co bylo napsané, `actualWeight` to, co se doopravdy naložilo. Všechno,
+ * co popisuje odvedený trénink — tonáž, intenzita, odhad maxima, únava —
+ * bere skutečnou váhu, pokud je zapsaná. Kde zapsaná není, zůstává plán,
+ * takže se nic nerozbije u sérií, které teprve přijdou.
+ */
+export const liftedWeight = (e) => e.actualWeight ?? e.weight;
+
+/** Opakování, která se doopravdy udělala. */
+export const liftedReps = (e) => e.actualReps ?? e.reps;
+
 /** Tonáž jedné položky = série × opakování × váha. */
-export const tonnage = (e) => e.sets * e.reps * e.weight;
+export const tonnage = (e) => e.sets * liftedReps(e) * liftedWeight(e);
 
 /** Počet zvedů (NL). */
-export const nl = (e) => e.sets * e.reps;
+export const nl = (e) => e.sets * liftedReps(e);
 
 /** Relativní intenzita v % z E1RM. */
-export const intensity = (e, e1rm) => (e1rm > 0 ? (e.weight / e1rm) * 100 : 0);
+export const intensity = (e, e1rm) => (e1rm > 0 ? (liftedWeight(e) / e1rm) * 100 : 0);
 
 /**
  * INOL = počet opakování / (100 − intenzita v %).
@@ -179,10 +219,6 @@ export const entryInol = (e, e1rm) => inol(nl(e), intensity(e, e1rm));
 
 /** Do které Prilepinovy zóny položka spadá. */
 export const prilepinZone = (pct) => PRILEPIN.find((z) => pct >= z.min && pct <= z.max) ?? PRILEPIN[0];
-
-/** Hodnocení INOL — pro jednu jednotku nebo celý týden. */
-export const gradeInol = (v, scope = 'session') =>
-  (scope === 'week' ? INOL_WEEK : INOL_SESSION).find((b) => v < b.max) ?? INOL_SESSION.at(-1);
 
 /**
  * Charakter týdne. Objem a intenzita jsou dvě nezávislé osy a jedno číslo
@@ -536,24 +572,34 @@ const num2 = (v, d = 2) => (v == null ? '—' : String(round(v, d)).replace('.',
  */
 export function setE1rm(e) {
   const rpe = e.actualRpe ?? e.rpe;
-  if (!(e.weight > 0) || !(e.reps > 0) || !(rpe > 0)) return null;
-  const v = E1RM.rpe(e.weight, e.reps, rpe);
+  const w = liftedWeight(e);
+  const r = liftedReps(e);
+  if (!(w > 0) || !(r > 0) || !(rpe > 0)) return null;
+  const v = E1RM.rpe(w, r, rpe);
   return v == null ? null : round(v, 1);
 }
 
 /**
- * Porovnání plánu se skutečností, položka po položce.
- * Kladná odchylka znamená, že série byla těžší, než měla být.
+ * Porovnání plánu se skutečností, položka po položce — a to na obou osách,
+ * na kterých se trénink může rozejít s plánem: kolik se naložilo a jak těžké
+ * to bylo. Kladná odchylka RPE znamená, že série byla těžší, než měla být;
+ * kladná odchylka váhy, že se naložilo víc, než bylo napsané.
  */
 export function planVsActual(entries) {
   return entries
-    .filter((e) => e.actualRpe != null && e.rpe != null)
-    .map((e) => ({
-      ...e,
-      delta: round(e.actualRpe - e.rpe, 1),
-      e1rmPlan: E1RM.rpe(e.weight, e.reps, e.rpe) ? round(E1RM.rpe(e.weight, e.reps, e.rpe), 1) : null,
-      e1rmReal: setE1rm(e),
-    }));
+    .filter((e) => e.actualRpe != null || e.actualWeight != null)
+    .map((e) => {
+      const plan = e.rpe == null ? null : E1RM.rpe(e.weight, e.reps, e.rpe);
+      return {
+        ...e,
+        planWeight: round(e.weight, 2),
+        realWeight: round(liftedWeight(e), 2),
+        weightDelta: round(liftedWeight(e) - e.weight, 2),
+        rpeDelta: e.actualRpe != null && e.rpe != null ? round(e.actualRpe - e.rpe, 1) : null,
+        e1rmPlan: plan == null ? null : round(plan, 1),
+        e1rmReal: setE1rm(e),
+      };
+    });
 }
 
 /**
@@ -1044,25 +1090,226 @@ export function trend(points) {
  * významnosti signálu proti šumu, jen bez p-hodnoty. Potřebuje aspoň tři
  * body — se dvěma padne přímka přesně na ně a šum vyjde nulový.
  */
-export function plateauCheck(points) {
-  const t = trend(points);
-  if (!t || points.length < 3) return null;
+/** Kritická hodnota t pro 95% oboustranný interval. */
+export const tCrit95 = (df) => (df <= 0 ? T95[0] : df <= 30 ? T95[df - 1] : 1.96);
+
+/**
+ * Trend i s tím, jak jistý si jím vůbec můžeme být.
+ *
+ * `trend()` vrátí sklon, ale sklon spočítaný ze šesti bodů je sám o sobě
+ * odhad se svou vlastní nejistotou. Interval spolehlivosti říká, v jakém
+ * rozmezí ten skutečný sklon leží — a jestli mezi ně patří i nula. Pokud
+ * ano, data neumí rozhodnout, jestli se závodník zlepšuje, nebo stojí.
+ *
+ *   směrodatná chyba sklonu = reziduální rozptyl ÷ √Sxx
+ *   interval = sklon ± t(0,95; n−2) · směrodatná chyba
+ *
+ * Předpovědní pás kolem přímky se rozšiřuje směrem od těžiště dat — proto
+ * ta odmocnina: čím dál od průměrného data, tím míň přímka ví.
+ */
+export function trendWithBand(points) {
+  const n = points?.length ?? 0;
+  if (n < 3) return null;
 
   const t0 = new Date(points[0].date).getTime();
   const xs = points.map((p) => (new Date(p.date).getTime() - t0) / 86400000);
   const ys = points.map((p) => p.value);
-  const residuals = xs.map((x, i) => ys[i] - (t.intercept + t.slope * x));
-  const residualSd = Math.sqrt(residuals.reduce((s, r) => s + r ** 2, 0) / (points.length - 2));
-  const span = xs.at(-1) - xs[0];
-  const totalMove = Math.abs(t.slope * span);
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const Sxx = xs.reduce((s, x) => s + (x - mx) ** 2, 0);
+  if (Sxx === 0) return null;
 
-  return { ...t, residualSd: round(residualSd, 1), totalMove: round(totalMove, 1), plateau: totalMove < residualSd };
+  const slope = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / Sxx;
+  const intercept = my - slope * mx;
+  const resid = xs.map((x, i) => ys[i] - (intercept + slope * x));
+  const se = Math.sqrt(resid.reduce((s, r) => s + r ** 2, 0) / (n - 2));
+  const seSlope = se / Math.sqrt(Sxx);
+  const t = tCrit95(n - 2);
+
+  return {
+    n,
+    slope,
+    intercept,
+    residualSd: round(se, 2),
+    seSlope,
+    slopeCI: [slope - t * seSlope, slope + t * seSlope],
+    perWeek: round(slope * 7, 2),
+    perWeekCI: [round((slope - t * seSlope) * 7, 2), round((slope + t * seSlope) * 7, 2)],
+    perMonth: round(slope * 30, 1),
+    /** polovina šířky předpovědního pásu v daném dni od prvního zápisu */
+    band: (x) => t * se * Math.sqrt(1 + 1 / n + (x - mx) ** 2 / Sxx),
+    xs,
+    mx,
+  };
+}
+
+/**
+ * Stojí to, nebo se to hýbe?
+ *
+ * Dřív tu bylo pravidlo, které jsem si vymyslel: „posunula se přímka za celé
+ * období víc, než je rozptyl bodů kolem ní?". Fungovalo, ale je to jen
+ * přibližná náhražka za věc, na kterou existuje standardní statistika.
+ *
+ * Teď se rozhoduje podle intervalu spolehlivosti sklonu, a to ve dvou
+ * krocích, protože „nedá se to poznat" a „stojí to" jsou dvě různé odpovědi:
+ *
+ *   · interval obsahuje nulu  →  data neumí rozhodnout, jestli se něco děje,
+ *   · posun za čtyři týdny je menší než nejmenší prokazatelná změna
+ *     →  i kdyby trend byl skutečný, prakticky nic nepřinese.
+ *
+ * Za plateau se prohlásí jen případ, kdy platí obojí naráz. Kdyby stačila
+ * první podmínka, appka by za stagnaci označila i pomalý, ale vytrvalý růst
+ * u závodníka s rozházenými zápisy — a to je přesně ten člověk, kterému se
+ * nemá říkat, že se nikam neposouvá.
+ */
+export function plateauCheck(points) {
+  const t = trendWithBand(points);
+  if (!t) return null;
+
+  const [lo, hi] = t.slopeCI;
+  const ciCrossesZero = lo <= 0 && hi >= 0;
+  const noise = measurementNoise(points);
+  const monthlyMove = Math.abs(t.slope * 28);
+  const tooSmall = noise != null && monthlyMove < noise.sdc;
+
+  return {
+    ...t,
+    totalMove: round(Math.abs(t.slope * (t.xs.at(-1) - t.xs[0])), 1),
+    monthlyMove: round(monthlyMove, 1),
+    ciCrossesZero,
+    tooSmall,
+    plateau: ciCrossesZero && tooSmall,
+  };
 }
 
 export function gradePlateau(p) {
   if (!p) return { label: 'Málo dat', tone: 'low' };
-  if (p.plateau) return { label: 'Beze změny', tone: 'warn' };
+  if (p.plateau) {
+    return { label: 'Beze změny', tone: 'warn', note: 'Trend není průkazný a i kdyby byl, za čtyři týdny by nedal prokazatelnou změnu.' };
+  }
+  if (p.ciCrossesZero) {
+    // sklon vychází kladně nebo záporně, ale interval obsahuje nulu —
+    // tvrdit směr by bylo víc, než data unesou
+    return { label: 'Neprůkazné', tone: 'low', note: 'Data zatím neumí rozhodnout, jestli jde výkon nahoru, nebo dolů. Přibude-li pár zápisů, vyjasní se to.' };
+  }
+  if (p.tooSmall) {
+    return { label: p.slope > 0 ? 'Roste pomalu' : 'Klesá pomalu', tone: 'warn', note: 'Trend je průkazný, ale za čtyři týdny nedá ani nejmenší prokazatelnou změnu.' };
+  }
   return { label: p.slope > 0 ? 'Roste' : 'Klesá', tone: p.slope > 0 ? 'ok' : 'bad' };
+}
+
+/* =========================================================
+   Robustní trend — když jeden špatný den nemá rozhodovat
+   ========================================================= */
+
+/**
+ * Theil–Sen: sklon jako medián všech párových sklonů.
+ *
+ * Obyčejná regrese se dá vychýlit jediným bodem — nemocí, zkaženým pokusem,
+ * dnem, kdy se špatně spalo. Medián párových sklonů takový bod prostě
+ * přehlasuje. Když se Theil–Sen a obyčejná regrese výrazně liší, je to samo
+ * o sobě informace: v datech sedí odlehlá hodnota.
+ */
+export function theilSen(points) {
+  const n = points?.length ?? 0;
+  if (n < 3) return null;
+  const t0 = new Date(points[0].date).getTime();
+  const xs = points.map((p) => (new Date(p.date).getTime() - t0) / 86400000);
+  const ys = points.map((p) => p.value);
+
+  const slopes = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (xs[j] !== xs[i]) slopes.push((ys[j] - ys[i]) / (xs[j] - xs[i]));
+    }
+  }
+  if (!slopes.length) return null;
+  const med = (arr) => {
+    const a = [...arr].sort((p, q) => p - q);
+    const m = a.length >> 1;
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+  const slope = med(slopes);
+  return {
+    slope,
+    intercept: med(xs.map((x, i) => ys[i] - slope * x)),
+    perWeek: round(slope * 7, 2),
+    perMonth: round(slope * 30, 1),
+    pairs: slopes.length,
+  };
+}
+
+/**
+ * Mann–Kendall: existuje monotónní trend?
+ *
+ * Neptá se, jestli data leží na přímce — jen jestli spíš rostou, nebo spíš
+ * klesají. Nepředpokládá žádný tvar ani rozdělení, takže na krátké a
+ * rozházené řady sedí líp než regrese.
+ */
+export function mannKendall(values) {
+  const n = values?.length ?? 0;
+  if (n < 4) return null;
+  let S = 0;
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = i + 1; j < n; j++) S += Math.sign(values[j] - values[i]);
+  }
+  const varS = (n * (n - 1) * (2 * n + 5)) / 18;
+  const Z = S > 0 ? (S - 1) / Math.sqrt(varS) : S < 0 ? (S + 1) / Math.sqrt(varS) : 0;
+  return {
+    S,
+    Z: round(Z, 2),
+    significant: Math.abs(Z) > 1.96,
+    direction: S > 0 ? 'up' : S < 0 ? 'down' : 'flat',
+  };
+}
+
+/**
+ * CUSUM — kdy přesně se to zlomilo.
+ *
+ * Detekce plateau řekne, že se progres zastavil. Tohle řekne, ve kterém
+ * zápisu. Sčítá se odchylka od průměru; dokud se hodnoty drží kolem něj,
+ * součet se drží u nuly, ale jakmile se úroveň posune, začne utíkat jedním
+ * směrem. Překročení prahu je poplach.
+ *
+ * k je mrtvé pásmo v jednotkách směrodatné odchylky (kolik se toleruje),
+ * h je práh poplachu. Obojí jsou zvyklosti řízení jakosti, ne hodnoty
+ * odvozené ze silového tréninku.
+ */
+export function cusum(points, { k = 0.5, h = 4, baseline = null } = {}) {
+  const vals = points?.map((p) => (typeof p === 'number' ? p : p.value)) ?? [];
+  const n = vals.length;
+  if (n < 6) return null;
+
+  // Referenční úroveň se bere z počátku řady, ne z celého průměru.
+  // Kdyby se počítala ze všeho, pak by u řady, která nejdřív roste a pak
+  // spadne, přišel poplach už v té rostoucí části — jen proto, že leží nad
+  // celkovým průměrem. Tady se ptáme na něco jiného: kdy se výkon odchýlil
+  // od toho, na co byl závodník rozjetý.
+  const base = Math.max(4, Math.min(baseline ?? Math.floor(n / 2), n - 2));
+  const head = vals.slice(0, base);
+  const mean = head.reduce((a, b) => a + b, 0) / head.length;
+  const sd = Math.sqrt(head.reduce((s, v) => s + (v - mean) ** 2, 0) / head.length);
+  if (!(sd > 0)) return null;
+
+  let cPos = 0;
+  let cNeg = 0;
+  const series = vals.map((v, i) => {
+    const z = (v - mean) / sd;
+    cPos = Math.max(0, cPos + z - k);
+    cNeg = Math.min(0, cNeg + z + k);
+    const alarm = i >= base && (cPos > h || cNeg < -h);
+    return {
+      i,
+      date: typeof points[i] === 'number' ? null : points[i].date,
+      value: v,
+      cPos: round(cPos, 2),
+      cNeg: round(cNeg, 2),
+      alarm,
+      direction: cNeg < -h ? 'down' : cPos > h ? 'up' : null,
+    };
+  });
+  const first = series.find((x) => x.alarm) ?? null;
+  return { series, baseline: base, mean: round(mean, 1), sd: round(sd, 2), breakAt: first };
 }
 
 /* =========================================================
@@ -1384,10 +1631,10 @@ export function dailyReadiness(entries, e1rms, { window: win = 28 } = {}) {
   for (const e of entries) {
     const actual = e.actualRpe;
     const e1 = e1rms[e.lift] ?? 0;
-    if (!(actual > 0) || !(e1 > 0) || !(e.weight > 0) || !(e.reps > 0)) continue;
+    if (!(actual > 0) || !(e1 > 0) || !(liftedWeight(e) > 0) || !(liftedReps(e) > 0)) continue;
 
     const pct = intensity(e, e1);
-    const expected = rpeFromPct(e.reps, pct);
+    const expected = rpeFromPct(liftedReps(e), pct);
     if (expected == null) continue;   // mimo tabulku — odhad by lhal
 
     const w = Math.max(0.01, entryInol(e, e1));
@@ -1426,6 +1673,534 @@ export function gradeReadiness(z) {
   if (z >= 1) return { label: 'Těžší než obvykle', tone: 'warn', note: 'Den byl náročnější, než měl podle plánu být. Jednou se to stane; třikrát po sobě je to signál.' };
   if (z <= -1) return { label: 'Lehčí než obvykle', tone: 'ok', note: 'Šlo to líp, než plán čekal. Buď je závodník odpočatý, nebo se plán začíná podceňovat.' };
   return { label: 'Podle očekávání', tone: 'ok', note: 'Trénink sedí na to, jak byl napsaný.' };
+}
+
+/* =========================================================
+   Taper — plán posledních týdnů
+   ========================================================= */
+
+/**
+ * Vygeneruje průběh objemu do dne závodu podle zvoleného modelu.
+ *
+ * Intenzita se v žádném z modelů nesnižuje. To je na taperu ta nejdůležitější
+ * a nejčastěji porušená věc: ubírá se práce, ne váha na ose. Kdo v posledním
+ * týdnu sjede i procenta, přijde o formu, ne o únavu.
+ */
+export function taperPlan(meetDate, { model = 'exponential', baseVolume = 100 } = {}) {
+  const m = TAPER_MODELS[model];
+  if (!m) return null;
+
+  const days = m.days;
+  const start = addDaysLocal(meetDate, -days);
+  const out = [];
+  for (let i = 0; i <= days; i++) {
+    const d = iso(addDaysLocal(start, i));
+    const frac = Math.max(0, Math.min(1, m.volumeAt(i, days)));
+    out.push({
+      date: d,
+      daysBefore: days - i,
+      fraction: round(frac, 3),
+      volume: round(baseVolume * frac, 1),
+    });
+  }
+
+  const last = out.at(-1);
+  return {
+    model,
+    label: m.label,
+    note: m.note,
+    warn: m.warn,
+    days,
+    start: iso(start),
+    days_: out,
+    finalDrop: round((1 - last.fraction) * 100, 0),
+    /* referenční body z praxe šampionů */
+    intensityPeak: iso(addDaysLocal(meetDate, -TAPER_REFERENCE.intensityPeakDaysBefore.mean)),
+    lastSession: iso(addDaysLocal(meetDate, -TAPER_REFERENCE.lastSessionDaysBefore[1])),
+  };
+}
+
+/** Sedí navržený pokles objemu na to, co dělají šampioni? */
+export function gradeTaperDrop(dropPct) {
+  if (dropPct == null) return { label: 'Bez dat', tone: 'low' };
+  const { mean, sd } = TAPER_REFERENCE.volumeDrop;
+  if (Math.abs(dropPct - mean) <= sd) return { label: 'Odpovídá praxi šampionů', tone: 'ok' };
+  if (dropPct < mean - sd) return { label: 'Ubráno málo', tone: 'warn' };
+  return { label: 'Ubráno hodně', tone: 'warn' };
+}
+
+/* =========================================================
+   Časová osa závodního dne
+   ========================================================= */
+
+/**
+ * Kdy začít rozcvičku, aby poslední série padla v ten správný okamžik.
+ *
+ * Počítá se pozpátku od prvního pokusu: kolo trvá tolik minut, kolik je
+ * závodníků ve flightě, a poslední rozcvičovací série má padnout zhruba
+ * deset závodníků před tím vlastním pokusem. Od toho se odečte počet
+ * rozcvičovacích sérií krát pauza mezi nimi.
+ *
+ * Všechny konstanty jsou trenérská praxe, ne měření — proto jde minuta na
+ * pokus přenastavit. Reálné tempo kolísá s nároky a technickými přestávkami.
+ */
+export function meetTimeline({
+  flightStart,
+  lifterOrder = 1,
+  flightSize = 12,
+  minPerAttempt = MEET_TIMING.minPerAttempt,
+  warmupSets = 5,
+  rest = MEET_TIMING.restBetweenWarmups,
+  lift = 'squat',
+} = {}) {
+  if (!(flightSize > 0) || !(lifterOrder > 0)) return null;
+
+  const toMin = (t) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t ?? '').trim());
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const fmt = (mins) => {
+    const x = ((Math.round(mins) % 1440) + 1440) % 1440;
+    return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
+  };
+
+  const startMin = toMin(flightStart);
+  if (startMin == null) return null;
+
+  const roundMin = flightSize * minPerAttempt;
+  // vlastní pokus přijde na řadu podle pořadí v nominaci
+  const attempt1 = startMin + (lifterOrder - 1) * minPerAttempt;
+  const attempt2 = attempt1 + roundMin;
+  const attempt3 = attempt2 + roundMin;
+
+  const lastWarmup = attempt1 - MEET_TIMING.lastWarmupLiftersBefore * minPerAttempt;
+  const warmupStart = lastWarmup - (warmupSets - 1) * rest;
+
+  return {
+    lift,
+    roundMin,
+    flightStart: fmt(startMin),
+    warmupStart: fmt(warmupStart),
+    lastWarmup: fmt(lastWarmup),
+    attempts: [fmt(attempt1), fmt(attempt2), fmt(attempt3)],
+    betweenAttempts: roundMin,
+    warmupWindow: Math.round(lastWarmup - warmupStart),
+    // varování, když rozcvička vychází dřív, než se otevře rozcvičovna
+    tight: warmupStart < startMin - MEET_TIMING.warmupRoomBefore[lift] - 5,
+  };
+}
+
+/* =========================================================
+   Srovnání úspěšnosti pokusů
+   ========================================================= */
+
+/**
+ * Kolik z devíti pokusů sedlo proti tomu, co dávají medailisté.
+ *
+ * Pozor na výklad procent 91 a 96 u výběru pokusů: počítala se jen ze
+ * závodníků, kteří třetí pokus dali. Je v nich tedy zabudované přežití —
+ * neříkají, že otvírák na 91 % třetího pokusu maximalizuje součet.
+ */
+export function attemptBenchmark(made, total = ATTEMPT_BENCHMARK.outOf) {
+  if (!(total > 0) || made == null) return null;
+  const scaled = (made / total) * ATTEMPT_BENCHMARK.outOf;
+  const { winners, average } = ATTEMPT_BENCHMARK;
+  return {
+    made,
+    total,
+    outOf9: round(scaled, 2),
+    winners,
+    average,
+    vsWinners: round(scaled - winners, 2),
+    vsAverage: round(scaled - average, 2),
+    level: scaled >= winners ? 'winners' : scaled >= average ? 'above' : 'below',
+  };
+}
+
+export function gradeAttempts(b) {
+  if (!b) return { label: 'Bez dat', tone: 'low', note: 'Zapiš aspoň jeden zápas.' };
+  if (b.level === 'winners') {
+    return { label: 'Na úrovni medailistů', tone: 'ok', note: `${num2(b.outOf9, 1)} z 9 — vítězové mistrovství světa dávají v průměru ${winnersLabel()}.` };
+  }
+  if (b.level === 'above') {
+    return { label: 'Nad průměrem', tone: 'ok', note: `${num2(b.outOf9, 1)} z 9. Průměrný závodník dává ${num2(ATTEMPT_BENCHMARK.average, 2)}, medailisté ${num2(ATTEMPT_BENCHMARK.winners, 2)}.` };
+  }
+  return {
+    label: 'Pod průměrem',
+    tone: 'warn',
+    note: `${num2(b.outOf9, 1)} z 9 je pod průměrem startovního pole (${num2(ATTEMPT_BENCHMARK.average, 2)}). Nejčastější příčina jsou příliš agresivní třetí pokusy — každá nula je pokus, který se do součtu nezapočítá.`,
+  };
+}
+
+const winnersLabel = () => num2(ATTEMPT_BENCHMARK.winners, 2);
+
+/* =========================================================
+   Percentily relativní síly
+   ========================================================= */
+
+/**
+ * Kde leží výkon proti populaci 810 tisíc startů.
+ *
+ * Z placeného textu se podařilo ověřit jen 90. percentil a jen pro dvě
+ * věkové skupiny. Appka proto neříká „jsi na 63. percentilu" — dopočítat
+ * chybějící percentily interpolací a vydávat je za data by byl výmysl.
+ * Říká jen, jestli je závodník nad hranicí nejlepší desetiny, nebo pod ní,
+ * a o kolik.
+ */
+export function strengthPercentile(lift, kg, bw, sex = 'm', age = null) {
+  if (!(kg > 0) || !(bw > 0)) return null;
+  const group = age != null && age > 80 ? 'old' : 'young';
+  const ref = STRENGTH_P90[group]?.[sex]?.[lift];
+  if (!(ref > 0)) return null;
+
+  const ratio = kg / bw;
+  return {
+    lift,
+    group,
+    groupLabel: STRENGTH_P90[group].label,
+    ratio: round(ratio, 2),
+    p90: ref,
+    above: ratio >= ref,
+    gapKg: round((ref - ratio) * bw, 1),
+    pctOfP90: round((ratio / ref) * 100, 0),
+    // mimo 18–35 a nad 80 se použije mladší skupina, což je přísnější měřítko
+    approxAge: age != null && age > 35 && age <= 80,
+  };
+}
+
+/* =========================================================
+   Šablony progrese
+   ========================================================= */
+
+/**
+ * 5/3/1 podle Wendlera. Procenta jdou z tréninkového maxima, tedy z 90 %
+ * skutečného maxima — ne ze samotného maxima. Nejčastější chyba při
+ * zavádění téhle šablony je právě tahle záměna.
+ */
+export function wendler531(oneRm, { unit = 'kg', tmPct = WENDLER_531.tmPct } = {}) {
+  if (!(oneRm > 0)) return null;
+  const tm = roundToBar(oneRm * tmPct, { unit });
+  const step = unit === 'lb' ? 5 : 2.5;
+  return {
+    oneRm: round(oneRm, 1),
+    tm,
+    tmPct: round(tmPct * 100, 0),
+    weeks: WENDLER_531.weeks.map((w, i) => ({
+      week: i + 1,
+      label: w.label,
+      deload: w.label === 'deload',
+      sets: w.sets.map(([pct, reps]) => ({
+        pct,
+        reps,
+        amrap: typeof reps === 'string',
+        weight: roundToBar((tm * pct) / 100, { unit, step }),
+      })),
+    })),
+  };
+}
+
+/**
+ * Kontrola, jestli není tréninkové maximum nadsazené.
+ * Wendler doporučuje: když poslední série nedá ani předepsaný počet
+ * opakování, maximum se snižuje o desetinu.
+ */
+export function wendlerCheck(weekLabel, repsAchieved) {
+  const floor = WENDLER_531.amrapFloor[weekLabel];
+  if (floor == null || repsAchieved == null) return null;
+  const short = repsAchieved < floor;
+  return {
+    floor,
+    achieved: repsAchieved,
+    short,
+    adjust: short ? -10 : 0,
+    note: short
+      ? `Poslední série dala ${repsAchieved} místo ${floor}. Tréninkové maximum je nadsazené — sniž ho o 10 %.`
+      : `Poslední série dala ${repsAchieved} při minimu ${floor}. Maximum sedí, pokračuj v progresi.`,
+  };
+}
+
+/* =========================================================
+   Distribuce intenzit a specifičnost
+   ========================================================= */
+
+/**
+ * Histogram zvedů po pětiprocentních pásmech intenzity.
+ *
+ * Prilepinova tabulka rozdělí práci do čtyř hrubých zón; tohle je jemnější
+ * pohled na tutéž věc a dá se porovnat se Sheikovou normou, podle které
+ * většina práce leží mezi 70 a 80 % maxima a série zřídka přesáhnou pět
+ * opakování.
+ */
+export function intensityHistogram(entries, e1rms, { bin = 5 } = {}) {
+  const bins = new Map();
+  let total = 0;
+  let inMain = 0;
+  let overFive = 0;
+  let mainReps = 0;
+
+  for (const e of entries) {
+    const e1 = e1rms[e.lift] ?? 0;
+    if (!(e1 > 0)) continue;
+    const pct = intensity(e, e1);
+    if (!(pct > 0)) continue;
+    const reps = nl(e);
+    const key = Math.floor(pct / bin) * bin;
+    bins.set(key, (bins.get(key) ?? 0) + reps);
+    total += reps;
+    mainReps += reps;
+    if (pct >= SHEIKO_NORMS.mainBand[0] && pct < SHEIKO_NORMS.mainBand[1]) inMain += reps;
+    if (liftedReps(e) > SHEIKO_NORMS.repsPerSetMax) overFive += reps;
+  }
+
+  if (!total) return null;
+  const rows = [...bins.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([from, reps]) => ({ from, to: from + bin, reps, pct: round((reps / total) * 100, 1) }));
+
+  return {
+    rows,
+    total,
+    mainBandPct: round((inMain / total) * 100, 1),
+    overFivePct: round((overFive / Math.max(1, mainReps)) * 100, 1),
+    norm: SHEIKO_NORMS,
+  };
+}
+
+/**
+ * Index specifičnosti — jaká část práce padne na samotné soutěžní cviky.
+ * Bloková periodizace čeká, že v akumulaci bude nižší a k závodu poroste.
+ */
+export function specificityIndex(entries) {
+  let comp = 0;
+  let all = 0;
+  for (const e of entries) {
+    const t = tonnage(e);
+    all += t;
+    if (e.lift !== 'accessory') comp += t;
+  }
+  if (!(all > 0)) return null;
+  const pct = round((comp / all) * 100, 1);
+  return {
+    pct,
+    comp: round(comp),
+    all: round(all),
+    phase: pct >= 80 ? 'realizace' : pct >= 60 ? 'transmutace' : 'akumulace',
+  };
+}
+
+/** Týdenní tempo nárůstu zátěže v procentech. */
+export function rampRate(weeks) {
+  return weeks.map((w, i) => {
+    const prev = weeks[i - 1];
+    const change = prev && prev.tonnage > 0
+      ? round(((w.tonnage - prev.tonnage) / prev.tonnage) * 100, 1)
+      : null;
+    return { week: w.week, tonnage: w.tonnage, change };
+  });
+}
+
+/**
+ * Poměr podnětu k únavě.
+ *
+ * VAROVÁNÍ K VÝKLADU: v původní podobě je tohle subjektivní škála, kterou
+ * kouč vyplní podle pocitu. Číselná verze níž je konstrukce appky, ne
+ * převzatá metoda — nikdy nebyla proti ničemu validovaná. Slouží k tomu,
+ * aby šlo dva cviky porovnat mezi sebou, ne k tomu, aby se z ní dělaly
+ * závěry o absolutní hodnotě.
+ */
+export function stimulusFatigue(entries, e1rms, lift) {
+  const own = entries.filter((e) => e.lift === lift);
+  if (!own.length) return null;
+  const e1 = e1rms[lift] ?? 0;
+  if (!(e1 > 0)) return null;
+
+  let hardSetCount = 0;
+  let intSum = 0;
+  let inolSum = 0;
+  for (const e of own) {
+    if (isHardSet(e, e1)) hardSetCount += e.sets;
+    intSum += intensity(e, e1) * nl(e);
+    inolSum += entryInol(e, e1);
+  }
+  const reps = own.reduce((s, e) => s + nl(e), 0);
+  if (!reps || !inolSum) return null;
+
+  const avgInt = intSum / reps;
+  const stimulus = hardSetCount * (avgInt / 100);
+  return {
+    lift,
+    hardSets: hardSetCount,
+    avgIntensity: round(avgInt, 1),
+    inol: round(inolSum, 2),
+    stimulus: round(stimulus, 2),
+    ratio: round(stimulus / inolSum, 2),
+  };
+}
+
+/* =========================================================
+   Shazování váhy
+   ========================================================= */
+
+/**
+ * Kolik zbývá do limitu a jak riskantní to je.
+ *
+ * TOHLE NENÍ NÁVOD, JAK SHAZOVAT. Appka spočítá rozdíl, zařadí ho do pásma
+ * rizika a upozorní, kde jsou hranice — samotný postup je věc, kterou má
+ * vést někdo, kdo na to má vzdělání. Protokoly na vodní nálož, které kolují
+ * po internetu, jsou z velké části bez dobré evidence a nesou reálné riziko
+ * hyponatremie.
+ *
+ * Klíčová proměnná, kterou appka nezná, je čas mezi vážením a startem:
+ * IPF váží dvě hodiny předem, jiné federace čtyřiadvacet. Bez toho čísla
+ * o „udržení výkonu" neplatí, a proto se na to ptá.
+ */
+export function cutPlan({ bw, limit, hoursToWeighIn = null } = {}) {
+  if (!(bw > 0) || !(limit > 0)) return null;
+  const need = round(bw - limit, 2);
+  if (need <= 0) {
+    return { need: 0, needPct: 0, band: { label: 'Kategorie sedí', tone: 'ok', note: 'Není co shazovat.' }, headroom: round(limit - bw, 2) };
+  }
+  const needPct = round((need / bw) * 100, 2);
+  const band = CUT_BANDS.find((b) => needPct <= b.max) ?? CUT_BANDS.at(-1);
+
+  // orientační rozpad: první dvě procenta jde srazit dietou a vyprázdněním,
+  // zbytek už je akutní voda
+  const passive = round(Math.min(need, bw * 0.02), 2);
+  return {
+    need,
+    needPct,
+    band,
+    passive,
+    water: round(Math.max(0, need - passive), 2),
+    hoursToWeighIn,
+    shortRecovery: hoursToWeighIn != null && hoursToWeighIn <= 2,
+    typical: CUT_FACTS.typicalPct,
+    vsTypical: round(needPct - CUT_FACTS.typicalPct, 2),
+  };
+}
+
+/* =========================================================
+   Rychlost tyče (VBT)
+   ========================================================= */
+
+/**
+ * Očekávaná rychlost tyče pro danou relativní intenzitu.
+ * Mezi tabulkovými body se lineárně interpoluje; mimo rozsah vrací null,
+ * protože extrapolovat pětibodovou tabulku by byl výmysl.
+ */
+export function velocityAtPct(lift, sex, pct) {
+  const rows = LOAD_VELOCITY[lift]?.[sex];
+  if (!rows || !(pct > 0)) return null;
+  if (pct < rows[0][0] || pct > rows.at(-1)[0]) return null;
+
+  for (let i = 0; i < rows.length - 1; i++) {
+    const [p0, v0, sd0] = rows[i];
+    const [p1, v1, sd1] = rows[i + 1];
+    if (pct >= p0 && pct <= p1) {
+      const t = p1 === p0 ? 0 : (pct - p0) / (p1 - p0);
+      return { v: round(v0 + (v1 - v0) * t, 3), sd: round(sd0 + (sd1 - sd0) * t, 3) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Odhad 1RM z naměřeného profilu zatížení a rychlosti.
+ *
+ * Přes dvojice (váha, rychlost) se proloží přímka a dosadí se do ní minimální
+ * prahová rychlost cviku:  1RM = sklon · MVT + průsečík.
+ *
+ * NA MRTVÝ TAH SE TOHLE NESMÍ POUŽÍT. Studie, která to testovala (PMC5968962),
+ * zjistila, že všechny varianty prahu podhodnotily skutečné maximum o 9 až 15 %,
+ * tedy o 16 až 28 kg, a autoři výslovně píší, že se individuální profily
+ * k odhadu maxima v mrtvém tahu používat nemají. Funkce proto u tahu vrací
+ * výsledek s příznakem `reliable: false` a UI ho odmítne ukázat jako číslo.
+ *
+ * points: [{ weight, velocity }] — aspoň tři postupně těžší série.
+ */
+export function lvProfile1RM(points, lift) {
+  const pts = (points ?? []).filter((p) => p.weight > 0 && p.velocity > 0);
+  if (pts.length < 3) return null;
+
+  const mvt = MVT[lift];
+  if (!mvt) return null;
+
+  // regrese váhy na rychlosti — rychlost je tu nezávislá proměnná,
+  // protože se do přímky dosazuje právě rychlost (MVT)
+  const n = pts.length;
+  const mx = pts.reduce((s, p) => s + p.velocity, 0) / n;
+  const my = pts.reduce((s, p) => s + p.weight, 0) / n;
+  const den = pts.reduce((s, p) => s + (p.velocity - mx) ** 2, 0);
+  if (den === 0) return null;
+  const slope = pts.reduce((s, p) => s + (p.velocity - mx) * (p.weight - my), 0) / den;
+  const intercept = my - slope * mx;
+
+  // jak těsně body na přímce leží — volný profil s r² pod 0,95 nemá cenu dosazovat
+  const ssTot = pts.reduce((s, p) => s + (p.weight - my) ** 2, 0);
+  const ssRes = pts.reduce((s, p) => s + (p.weight - (intercept + slope * p.velocity)) ** 2, 0);
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : null;
+
+  return {
+    n,
+    mvt: mvt.v,
+    slope: round(slope, 2),
+    intercept: round(intercept, 2),
+    r2: r2 == null ? null : round(r2, 3),
+    e1rm: round(slope * mvt.v + intercept, 1),
+    reliable: mvt.usable,
+    note: mvt.note,
+  };
+}
+
+export function gradeVelocityLoss(pct) {
+  if (pct == null || !Number.isFinite(pct)) return { label: 'Bez dat', tone: 'low', note: 'Zadej rychlost první a poslední série.' };
+  return VELOCITY_LOSS.find((b) => pct < b.max) ?? VELOCITY_LOSS.at(-1);
+}
+
+/**
+ * Bezpřístrojová obdoba prahu poklesu rychlosti.
+ *
+ * Kdo nemá měřák, může stejnou otázku — „kdy sérii ukončit" — číst z toho, co
+ * appka stejně zapisuje: kolik opakování se při stejné váze udrželo a na jaké
+ * RPE. Propad opakování o víc než pětinu proti první sérii nebo skok RPE
+ * o dva body a víc odpovídá zhruba dvaceti až pětadvaceti procentům poklesu
+ * rychlosti.
+ *
+ * POZOR: tohle je převodní pravidlo z trenérské praxe, ne změřená ekvivalence.
+ * Nikdo neporovnal obě veličiny na stejném vzorku — je to rozumná analogie,
+ * ne validovaný přepočet, a appka to tak i pojmenuje.
+ */
+export function setDropoff(entries, lift, date) {
+  const day = entries
+    .filter((e) => e.lift === lift && e.date === date && e.sets > 0)
+    .filter((e) => liftedWeight(e) > 0);
+  if (day.length < 2) return null;
+
+  const weightOf = liftedWeight;
+  // porovnávají se jen série na stejné váze — jinak by pokles opakování
+  // znamenal jen to, že se přidalo na ose
+  const first = day[0];
+  const same = day.filter((e) => Math.abs(weightOf(e) - weightOf(first)) < 0.01);
+  if (same.length < 2) return null;
+
+  const last = same.at(-1);
+  const fr = liftedReps(first);
+  const lr = liftedReps(last);
+  const repDrop = fr > 0 ? ((fr - lr) / fr) * 100 : null;
+  const rpeFirst = first.actualRpe ?? first.rpe;
+  const rpeLast = last.actualRpe ?? last.rpe;
+  const rpeJump = rpeFirst > 0 && rpeLast > 0 ? round(rpeLast - rpeFirst, 1) : null;
+
+  return {
+    weight: round(weightOf(first), 2),
+    sets: same.length,
+    firstReps: fr,
+    lastReps: lr,
+    repDrop: repDrop == null ? null : round(repDrop, 1),
+    rpeJump,
+    // kterákoli z obou podmínek stačí — měří totéž z jiné strany
+    stop: (repDrop != null && repDrop > 20) || (rpeJump != null && rpeJump >= 2),
+  };
 }
 
 /* =========================================================

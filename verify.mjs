@@ -16,7 +16,8 @@
  */
 
 import * as C from './js/calc.js';
-import { SBD_RATIOS as SBD, AGE_COEFF as AGE } from './js/data.js';
+import { SBD_RATIOS as SBD, AGE_COEFF as AGE, LOAD_VELOCITY as LV, MVT,
+  TAPER_REFERENCE, ATTEMPT_BENCHMARK, STRENGTH_P90, WENDLER_531, CUT_FACTS } from './js/data.js';
 
 let failed = 0;
 let passed = 0;
@@ -28,6 +29,12 @@ const near = (name, got, want, tol = 0.01) => {
 };
 
 const group = (title) => console.log(`\n${title}`);
+
+/** i-tý den od 1. 1. 2026 jako 'YYYY-MM-DD'. */
+const isoDay = (i) => {
+  const d = new Date(2026, 0, 1 + i);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /* ---------------------------------------------------------------- */
 group('RPE tabulka (Tuchscherer / RTS)');
@@ -474,6 +481,289 @@ group('Signál stropu regenerace (MRV)');
   near('stagnace při sníženém objemu není známka stropu', deload.score, 0, 0);
 
   near('bez dat hlásí málo dat', C.gradeMrv(C.mrvSignal({})).tone === 'low' ? 1 : 0, 1, 0);
+}
+
+group('Rychlost tyče (VBT)');
+{
+  // tabulkové body musí sedět přesně
+  near('dřep muži 70 % → 0,61 m/s', C.velocityAtPct('squat', 'm', 70).v, 0.61, 0.0001);
+  near('bench ženy 80 % → 0,36 m/s', C.velocityAtPct('bench', 'f', 80).v, 0.36, 0.0001);
+  // mezi body se interpoluje lineárně: 65 % leží v půli mezi 60 (0,70) a 70 (0,61)
+  near('dřep muži 65 % je půl cesty mezi 60 a 70', C.velocityAtPct('squat', 'm', 65).v, (0.70 + 0.61) / 2, 0.0001);
+  near('mimo rozsah tabulky vrací null', C.velocityAtPct('squat', 'm', 40) === null ? 1 : 0, 1, 0);
+  near('mrtvý tah v tabulce není', C.velocityAtPct('deadlift', 'm', 70) === null ? 1 : 0, 1, 0);
+
+  // odhad 1RM: dokonale lineární profil musí trefit dosazení MVT přesně.
+  // váha = 250 − 200 · rychlost  ⇒  při MVT 0,25 vyjde 200
+  const pts = [0.8, 0.6, 0.4, 0.3].map((v) => ({ velocity: v, weight: 250 - 200 * v }));
+  const prof = C.lvProfile1RM(pts, 'squat');
+  near('sklon regrese', prof.slope, -200, 0.01);
+  near('průsečík regrese', prof.intercept, 250, 0.01);
+  near('odhad 1RM = sklon · MVT + průsečík', prof.e1rm, -200 * MVT.squat.v + 250, 0.05);
+  near('dokonalá přímka má r² = 1', prof.r2, 1, 0.0001);
+  near('dřep je pro tuhle metodu použitelný', prof.reliable ? 1 : 0, 1, 0);
+
+  // mrtvý tah musí přijít označený jako nepoužitelný — studie metodu odmítá
+  near('mrtvý tah je označen jako nespolehlivý', C.lvProfile1RM(pts, 'deadlift').reliable ? 0 : 1, 1, 0);
+  near('pod tři série vrací null', C.lvProfile1RM(pts.slice(0, 2), 'squat') === null ? 1 : 0, 1, 0);
+  near('neznámý cvik vrací null', C.lvProfile1RM(pts, 'benchpress') === null ? 1 : 0, 1, 0);
+
+  // pásma poklesu rychlosti
+  near('pokles 5 % je málo únavy', C.gradeVelocityLoss(5).tone === 'low' ? 1 : 0, 1, 0);
+  near('pokles 20 % sedí na maximální sílu', C.gradeVelocityLoss(20).tone === 'ok' ? 1 : 0, 1, 0);
+  near('pokles 30 % je hypertrofie', C.gradeVelocityLoss(30).tone === 'warn' ? 1 : 0, 1, 0);
+  near('pokles 50 % už nic nepřidá', C.gradeVelocityLoss(50).tone === 'bad' ? 1 : 0, 1, 0);
+
+  // bezpřístrojová obdoba z deníku
+  const mk = (reps, actualRpe, weight = 150) => ({ date: '2026-04-06', lift: 'squat', sets: 1, reps, weight, rpe: 7, actualRpe });
+  const big = C.setDropoff([mk(8, 7), mk(7, 8), mk(5, 9)], 'squat', '2026-04-06');
+  near('propad z 8 na 5 opakování je 37,5 %', big.repDrop, 37.5, 0.01);
+  near('skok RPE ze 7 na 9 jsou 2 body', big.rpeJump, 2, 0.001);
+  near('propad nad 20 % znamená konec', big.stop ? 1 : 0, 1, 0);
+
+  const small = C.setDropoff([mk(8, 7), mk(8, 7.5), mk(7, 8)], 'squat', '2026-04-06');
+  near('propad z 8 na 7 je 12,5 %', small.repDrop, 12.5, 0.01);
+  near('malý propad i malý skok RPE = pokračovat', small.stop ? 0 : 1, 1, 0);
+
+  // série na jiné váze se nesmí porovnávat — nižší opakování tam znamenají
+  // jen to, že se přidalo na ose
+  const ramp = C.setDropoff([mk(8, 7, 150), mk(3, 9, 190)], 'squat', '2026-04-06');
+  near('rampa na různých vahách se nepočítá', ramp === null ? 1 : 0, 1, 0);
+  near('jediná série nedá pokles', C.setDropoff([mk(8, 7)], 'squat', '2026-04-06') === null ? 1 : 0, 1, 0);
+
+  // skutečná váha má přednost před plánovanou
+  const withActual = C.setDropoff([
+    { date: '2026-04-06', lift: 'squat', sets: 1, reps: 8, weight: 150, actualWeight: 140, rpe: 7, actualRpe: 7 },
+    { date: '2026-04-06', lift: 'squat', sets: 1, reps: 6, weight: 150, actualWeight: 140, rpe: 7, actualRpe: 9 },
+  ], 'squat', '2026-04-06');
+  near('pokles se počítá ze skutečné váhy', withActual.weight, 140, 0.001);
+}
+
+group('Interval spolehlivosti trendu');
+{
+  // skutečná datová aritmetika — dřív tu byl vzoreček, který přes konec měsíce
+  // dělal z týdenního rozestupu desetidenní a rozbíjel sklon
+  const day = isoDay;
+  // dokonalá přímka: nulová rezidua ⇒ nulová chyba sklonu ⇒ interval je bod
+  const clean = [0, 1, 2, 3, 4, 5].map((i) => ({ date: day(i * 7), value: 200 + i * 5 }));
+  const t = C.trendWithBand(clean);
+  near('sklon 5 kg za 7 dnů', t.perWeek, 5, 0.001);
+  near('reziduální rozptyl je nulový', t.residualSd, 0, 0.001);
+  near('interval sklonu je degenerovaný na bod', t.slopeCI[1] - t.slopeCI[0], 0, 0.0001);
+  near('interval neobsahuje nulu', (t.slopeCI[0] <= 0 && t.slopeCI[1] >= 0) ? 0 : 1, 1, 0);
+
+  // t kritické hodnoty
+  near('t(0,95; df=4) = 2,776', C.tCrit95(4), 2.776, 0.0001);
+  near('t(0,95; df=30) = 2,042', C.tCrit95(30), 2.042, 0.0001);
+  near('nad 30 stupňů volnosti se blíží 1,96', C.tCrit95(200), 1.96, 0.0001);
+
+  // ověřit směrodatnou chybu sklonu nezávislým výpočtem
+  const noisy = [0, 5, 10, 15, 20, 25, 30].map((d, i) => ({ date: day(d), value: 200 + i * 3 + (i % 2 ? 4 : -4) }));
+  const tn = C.trendWithBand(noisy);
+  {
+    const xs = [0, 5, 10, 15, 20, 25, 30];
+    const ys = noisy.map((p) => p.value);
+    const n = xs.length;
+    const mx = xs.reduce((a, b) => a + b) / n;
+    const my = ys.reduce((a, b) => a + b) / n;
+    const Sxx = xs.reduce((s2, x) => s2 + (x - mx) ** 2, 0);
+    const slope = xs.reduce((s2, x, i) => s2 + (x - mx) * (ys[i] - my), 0) / Sxx;
+    const inter = my - slope * mx;
+    const se = Math.sqrt(xs.reduce((s2, x, i) => s2 + (ys[i] - (inter + slope * x)) ** 2, 0) / (n - 2));
+    near('směrodatná chyba sklonu proti nezávislému výpočtu', tn.seSlope, se / Math.sqrt(Sxx), 1e-9);
+  }
+  // předpovědní pás je nejužší v těžišti dat a širší po krajích
+  near('pás je v těžišti užší než na kraji', tn.band(tn.mx) < tn.band(tn.xs.at(-1)) ? 1 : 0, 1, 0);
+
+  // plateau: obě podmínky musí platit naráz
+  const flat = [0, 1, 2, 3, 4, 5].map((i) => ({ date: day(i * 7), value: 200 + (i % 2 ? 1 : -1) }));
+  near('šum kolem konstanty je plateau', C.plateauCheck(flat).plateau ? 1 : 0, 1, 0);
+  near('čistý růst plateau není', C.plateauCheck(clean).plateau ? 0 : 1, 1, 0);
+  near('čistý růst má průkazný interval', C.plateauCheck(clean).ciCrossesZero ? 0 : 1, 1, 0);
+  near('hodnocení čistého růstu je „Roste"', C.gradePlateau(C.plateauCheck(clean)).label === 'Roste' ? 1 : 0, 1, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Robustní trend a detekce zlomu');
+{
+  const day = isoDay;
+  const base = [0, 1, 2, 3, 4, 5, 6].map((i) => ({ date: day(i * 4), value: 200 + i * 4 }));
+  near('Theil–Sen na čisté přímce dá stejný sklon jako regrese', C.theilSen(base).perWeek, C.trendWithBand(base).perWeek, 0.01);
+
+  // Jeden odlehlý bod. Musí sedět na kraji řady — bod přesně v těžišti nemá
+  // na sklon regrese žádnou páku a posunul by jen průsečík, takže by test
+  // neukázal nic.
+  const withOutlier = base.map((p, i) => (i === 6 ? { ...p, value: p.value - 60 } : p));
+  const olsShift = Math.abs(C.trendWithBand(withOutlier).perWeek - C.trendWithBand(base).perWeek);
+  const tsShift = Math.abs(C.theilSen(withOutlier).perWeek - C.theilSen(base).perWeek);
+  near('odlehlá hodnota regresi vychýlí', olsShift > 5 ? 1 : 0, 1, 0);
+  near('Theil–Sen ji ustojí beze změny', tsShift, 0, 0.001);
+  near('počet párů je n(n−1)/2', C.theilSen(base).pairs, (7 * 6) / 2, 0);
+
+  // Mann–Kendall
+  const up = C.mannKendall([1, 2, 3, 4, 5, 6, 7, 8]);
+  near('rostoucí řada má S = n(n−1)/2', up.S, (8 * 7) / 2, 0);
+  near('rostoucí řada je průkazná', up.significant ? 1 : 0, 1, 0);
+  near('směr je nahoru', up.direction === 'up' ? 1 : 0, 1, 0);
+  const down = C.mannKendall([8, 7, 6, 5, 4, 3, 2, 1]);
+  near('klesající řada má opačné S', down.S, -(8 * 7) / 2, 0);
+  near('krátká řada vrací null', C.mannKendall([1, 2, 3]) === null ? 1 : 0, 1, 0);
+
+  // CUSUM najde bod, kde se úroveň posune. Základ musí mít nějaký rozptyl —
+  // dokonale plochá řada se nedá standardizovat a appka na ni vrátí null.
+  const jitter = [2, -3, 1, -1, 3, -2, 1, -1];
+  const shift = [...jitter.map((j) => 200 + j), ...jitter.map((j) => 170 + j)]
+    .map((v, i) => ({ date: day(i), value: v }));
+  const cu = C.cusum(shift, { k: 0.5, h: 2 });
+  near('CUSUM najde zlom', cu.breakAt ? 1 : 0, 1, 0);
+  near('zlom leží až po posunu úrovně', cu.breakAt.i >= 8 ? 1 : 0, 1, 0);
+  near('a hlásí, že šlo o propad', cu.breakAt.direction === 'down' ? 1 : 0, 1, 0);
+  near('referenční úroveň se bere z počátku řady', cu.mean, 200, 0.5);
+  near('dokonale plochá řada vrací null', C.cusum(Array.from({ length: 12 }, (_, i) => ({ date: day(i), value: 200 }))) === null ? 1 : 0, 1, 0);
+  near('krátká řada vrací null', C.cusum(shift.slice(0, 4)) === null ? 1 : 0, 1, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Taper a závodní den');
+{
+  const plan = C.taperPlan('2026-05-30', { model: 'exponential', baseVolume: 100 });
+  near('exponenciální taper trvá 21 dnů', plan.days, 21, 0);
+  near('začíná 21 dnů před závodem', C.daysBetween(plan.start, '2026-05-30'), 21, 0);
+  near('první den drží plný objem', plan.days_[0].fraction, 1, 0.001);
+  near('objem po celou dobu klesá',
+    plan.days_.every((d, i) => i === 0 || d.fraction <= plan.days_[i - 1].fraction) ? 1 : 0, 1, 0);
+  // všechny tři modely končí na zhruba polovině výchozího objemu — v řízeném
+  // pokusu skončily obě větve na −50 % práce, lišil se jen tvar cesty
+  near('na konci zbyde zhruba polovina objemu', plan.days_.at(-1).fraction, 0.5, 0.03);
+  near('konečný pokles odpovídá praxi šampionů', C.gradeTaperDrop(plan.finalDrop).tone === 'ok' ? 1 : 0, 1, 0);
+
+  const lin = C.taperPlan('2026-05-30', { model: 'linear' });
+  near('lineární taper trvá 14 dnů', lin.days, 14, 0);
+  const step = C.taperPlan('2026-05-30', { model: 'step' });
+  near('krokový taper trvá 7 dnů', step.days, 7, 0);
+  near('krokový drží polovinu objemu po celou dobu',
+    step.days_.every((x) => Math.abs(x.fraction - 0.5) < 0.001) ? 1 : 0, 1, 0);
+  near('lineární klesá na polovinu rovnoměrně', lin.days_[7].fraction, 0.75, 0.01);
+  near('neznámý model vrací null', C.taperPlan('2026-05-30', { model: 'xxx' }) === null ? 1 : 0, 1, 0);
+
+  near('vrchol intenzity 8 dnů před závodem', C.daysBetween(plan.intensityPeak, '2026-05-30'), TAPER_REFERENCE.intensityPeakDaysBefore.mean, 0);
+  near('poslední trénink 4 dny před závodem', C.daysBetween(plan.lastSession, '2026-05-30'), 4, 0);
+
+  near('pokles 50 % odpovídá praxi šampionů', C.gradeTaperDrop(50).tone === 'ok' ? 1 : 0, 1, 0);
+  near('pokles 20 % je málo', C.gradeTaperDrop(20).tone === 'warn' ? 1 : 0, 1, 0);
+
+  // časová osa
+  const tl = C.meetTimeline({ flightStart: '10:00', lifterOrder: 5, flightSize: 12, minPerAttempt: 1, warmupSets: 5 });
+  near('kolo trvá tolik minut, kolik je závodníků', tl.roundMin, 12, 0);
+  near('první pokus je 4 minuty po startu flighty', tl.attempts[0] === '10:04' ? 1 : 0, 1, 0);
+  near('druhý pokus o kolo později', tl.attempts[1] === '10:16' ? 1 : 0, 1, 0);
+  near('třetí pokus o další kolo', tl.attempts[2] === '10:28' ? 1 : 0, 1, 0);
+  near('poslední rozcvička 10 závodníků před pokusem', tl.lastWarmup === '09:54' ? 1 : 0, 1, 0);
+  near('rozcvička začíná o 4 pauzy dřív', tl.warmupStart === '09:30' ? 1 : 0, 1, 0);
+  near('bez času startu vrací null', C.meetTimeline({ flightStart: 'nesmysl' }) === null ? 1 : 0, 1, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Benchmark pokusů a percentily síly');
+{
+  const b = C.attemptBenchmark(9, 9);
+  near('9 z 9 je nad úrovní medailistů', b.level === 'winners' ? 1 : 0, 1, 0);
+  near('6 z 9 je pod průměrem', C.attemptBenchmark(6, 9).level === 'below' ? 1 : 0, 1, 0);
+  near('přepočet na devítku', C.attemptBenchmark(4, 6).outOf9, 6, 0.001);
+  near('hodnocení pod průměrem varuje', C.gradeAttempts(C.attemptBenchmark(5, 9)).tone === 'warn' ? 1 : 0, 1, 0);
+
+  // percentily — jen ověřený 90. percentil
+  const sq = C.strengthPercentile('squat', 283, 100, 'm');
+  near('dřep 2,83× tělesné váhy je přesně na 90. percentilu', sq.ratio, STRENGTH_P90.young.m.squat, 0.001);
+  near('a tedy je na hranici nebo nad ní', sq.above ? 1 : 0, 1, 0);
+  const weak = C.strengthPercentile('squat', 200, 100, 'm');
+  near('slabší dřep je pod hranicí', weak.above ? 0 : 1, 1, 0);
+  near('chybí 83 kg do 90. percentilu', weak.gapKg, 83, 0.1);
+  near('nad 80 let platí jiná tabulka', C.strengthPercentile('squat', 172, 100, 'm', 85).p90, STRENGTH_P90.old.m.squat, 0.001);
+  near('mezi 35 a 80 lety se použije mladší skupina s příznakem', C.strengthPercentile('squat', 250, 100, 'm', 50).approxAge ? 1 : 0, 1, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Šablony progrese');
+{
+  const w = C.wendler531(200);
+  near('tréninkové maximum je 90 % z maxima', w.tm, 180, 0.01);
+  // týden 1, série 3: 85 % z TM = 153 → zaokrouhleno na 2,5 kg
+  near('týden 1 poslední série = 85 % z TM', w.weeks[0].sets[2].weight, C.roundToBar(180 * 0.85), 0.01);
+  near('a je to AMRAP', w.weeks[0].sets[2].amrap ? 1 : 0, 1, 0);
+  near('týden 3 poslední série = 95 % z TM', w.weeks[2].sets[2].weight, C.roundToBar(180 * 0.95), 0.01);
+  near('čtvrtý týden je deload', w.weeks[3].deload ? 1 : 0, 1, 0);
+  near('procenta jdou z TM, ne z 1RM', w.weeks[0].sets[2].weight < 200 * 0.85 ? 1 : 0, 1, 0);
+
+  near('málo opakování na AMRAP sníží maximum', C.wendlerCheck('5', 3).adjust, -10, 0);
+  near('dost opakování maximum nemění', C.wendlerCheck('5', 8).adjust, 0, 0);
+  near('neznámý týden vrací null', C.wendlerCheck('xx', 5) === null ? 1 : 0, 1, 0);
+}
+
+/* ---------------------------------------------------------------- */
+group('Distribuce, specifičnost a shazování');
+{
+  const e1 = { squat: 200 };
+  const mk = (weight, sets, reps) => ({ date: '2026-04-06', lift: 'squat', sets, reps, weight, rpe: 8 });
+  const hist = C.intensityHistogram([mk(150, 5, 5), mk(160, 3, 3), mk(190, 1, 1)], e1);
+  near('zvedy se sečtou', hist.total, 25 + 9 + 1, 0);
+  // 150/200 = 75 % → pásmo 75; 160/200 = 80 % → pásmo 80; 190/200 = 95 % → pásmo 95
+  near('pásmo 75 % nese 25 zvedů', hist.rows.find((r) => r.from === 75).reps, 25, 0);
+  near('pásmo 95 % nese 1 zvedu', hist.rows.find((r) => r.from === 95).reps, 1, 0);
+  near('v Sheikově hlavním pásmu 70–80 % je 25 z 35 zvedů', hist.mainBandPct, (25 / 35) * 100, 0.1);
+
+  const spec = C.specificityIndex([
+    { lift: 'squat', sets: 5, reps: 5, weight: 100 },
+    { lift: 'accessory', sets: 3, reps: 10, weight: 50 },
+  ]);
+  near('specifičnost = tonáž soutěžních ÷ celková', spec.pct, (2500 / (2500 + 1500)) * 100, 0.1);
+  near('62,5 % odpovídá transmutaci', spec.phase === 'transmutace' ? 1 : 0, 1, 0);
+
+  const ramp = C.rampRate([{ week: 1, tonnage: 1000 }, { week: 2, tonnage: 1100 }, { week: 3, tonnage: 990 }]);
+  near('první týden nemá s čím srovnávat', ramp[0].change === null ? 1 : 0, 1, 0);
+  near('nárůst o 10 %', ramp[1].change, 10, 0.01);
+  near('pokles o 10 %', ramp[2].change, -10, 0.01);
+
+  const cut = C.cutPlan({ bw: 100, limit: 93 });
+  near('chybí 7 kg', cut.need, 7, 0.001);
+  near('to je 7 % tělesné váhy', cut.needPct, 7, 0.001);
+  near('nad 5 % je vysoké riziko', cut.band.tone === 'bad' ? 1 : 0, 1, 0);
+  near('první 2 % jdou pasivně', cut.passive, 2, 0.001);
+  near('zbytek je voda', cut.water, 5, 0.001);
+  near('4 % je střední riziko', C.cutPlan({ bw: 100, limit: 96 }).band.tone === 'warn' ? 1 : 0, 1, 0);
+  near('kdo je pod limitem, nemá co shazovat', C.cutPlan({ bw: 90, limit: 93 }).need, 0, 0.001);
+  near('srovnání s typickým shozem 4,2 %', cut.vsTypical, 7 - CUT_FACTS.typicalPct, 0.01);
+}
+
+/* ---------------------------------------------------------------- */
+group('Poměr podnětu k únavě a osmá rovnice 1RM');
+{
+  const e1 = { squat: 200 };
+  const sets = [
+    { date: '2026-04-06', lift: 'squat', sets: 4, reps: 5, weight: 160, rpe: 8 },
+    { date: '2026-04-08', lift: 'squat', sets: 3, reps: 3, weight: 180, rpe: 9 },
+  ];
+  const sfr = C.stimulusFatigue(sets, e1, 'squat');
+  near('tvrdé série se sečtou', sfr.hardSets, 7, 0);
+  near('poměr je kladný', sfr.ratio > 0 ? 1 : 0, 1, 0);
+  near('cvik bez maxima vrací null', C.stimulusFatigue(sets, {}, 'squat') === null ? 1 : 0, 1, 0);
+
+  // rovnice 2026 — ověřena proti kontrolním hodnotám z rešerše
+  near('100 kg × 5 → 117,5', C.E1RM.weightDependent(100, 5), 117.5, 0.1);
+  near('40 kg × 10 → 58,0', C.E1RM.weightDependent(40, 10), 58.0, 0.1);
+  near('na jedno opakování vrací váhu', C.E1RM.weightDependent(100, 1), 100, 0.001);
+  near('pod hranicí kladného jmenovatele vrací null', C.E1RM.weightDependent(1.5, 5) === null ? 1 : 0, 1, 0);
+  // tohle je ta vlastnost, kvůli které rovnice vznikla
+  const lightRatio = C.E1RM.weightDependent(40, 10) / 40;
+  const heavyRatio = C.E1RM.weightDependent(200, 10) / 200;
+  near('lehká činka dostane větší převodní faktor než těžká', lightRatio > heavyRatio ? 1 : 0, 1, 0);
+
+  // Rovnice je závislá na jednotkách. Appka drží všechno v kilogramech a
+  // převádí až při zobrazení, takže do ní kg dorazí i v librovém režimu —
+  // kdyby se do ní poslaly libry, vyšlo by něco úplně jiného.
+  const inLb = C.E1RM.weightDependent(100 / 0.45359237, 5) * 0.45359237;
+  near('poslat libry místo kg dá jiný výsledek (proto se převádí předem)',
+    Math.abs(inLb - C.E1RM.weightDependent(100, 5)) > 1 ? 1 : 0, 1, 0);
 }
 
 /* ---------------------------------------------------------------- */

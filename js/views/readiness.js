@@ -45,6 +45,8 @@ function build(root, render, nav) {
     readinessCard(entries, e1rms),
     mrvCard(a, entries)));
   root.append(noiseCard(a));
+  root.append(trendCard(a));
+  root.append(sfrCard(a, entries, e1rms));
   root.append(balanceCard(a));
 }
 
@@ -380,4 +382,116 @@ function balanceCard(a) {
       + 'IPF GL, ale z toho neplyne, že se součet zvedne tím, že se poměr narovná. Délka končetin a stavba '
       + 'těla posunou podíl legitimně a natrvalo. Čti to jako otázku, ne jako předpis. Data: '
       + 'Hernández Ugalde (2023), Int J Strength Cond 3(1) — závody IPF 2012–2022, 128 tisíc startů, věk 24–39.'));
+}
+
+/* =========================================================
+   6 · Trend, jeho nejistota a okamžik zlomu
+   ========================================================= */
+function trendCard(a) {
+  const log = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
+
+  const rows = COMP_LIFTS.map((k) => {
+    const pts = log.filter((x) => x.lift === k)
+      .sort((x, y) => x.date.localeCompare(y.date))
+      .map((x) => ({ date: x.date, value: x.value }));
+    return { lift: k, pts, ols: C.trendWithBand(pts), ts: C.theilSen(pts), mk: C.mannKendall(pts.map((p) => p.value)), cu: C.cusum(pts), pl: C.plateauCheck(pts) };
+  }).filter((r) => r.ols);
+
+  if (!rows.length) {
+    return card('Trend a jeho nejistota', { eyebrow: 'Interval spolehlivosti, robustní odhad, detekce zlomu' },
+      h('p.note', 'Zapiš aspoň tři maxima u jednoho cviku.'));
+  }
+
+  return card('Trend a jeho nejistota', {
+    eyebrow: 'Interval spolehlivosti sklonu · robustní odhad · detekce zlomu',
+  },
+    table(
+      ['Cvik',
+        { label: `Sklon (${U()}/týden)`, num: true },
+        { label: '95% interval', num: true },
+        { label: 'Theil–Sen', num: true },
+        { label: 'Mann–Kendall', num: true },
+        'Závěr'],
+      rows.map((r) => {
+        const g = C.gradePlateau(r.pl);
+        return {
+          tone: g.tone === 'ok' ? 'ok' : g.tone === 'bad' ? 'bad' : g.tone === 'warn' ? 'warn' : null,
+          cells: [
+            h('span', liftDot(r.lift), LIFTS[r.lift].label),
+            { num: true, value: `${r.ols.perWeek >= 0 ? '+' : '−'}${fixed(Math.abs(S.toDisplay(r.ols.perWeek)), 2)}` },
+            { num: true, value: `${fixed(S.toDisplay(r.ols.perWeekCI[0]), 1)} až ${fixed(S.toDisplay(r.ols.perWeekCI[1]), 1)}` },
+            { num: true, value: r.ts ? `${r.ts.perWeek >= 0 ? '+' : '−'}${fixed(Math.abs(S.toDisplay(r.ts.perWeek)), 2)}` : '—' },
+            { num: true, value: r.mk ? `Z ${fixed(r.mk.Z, 2)}${r.mk.significant ? ' *' : ''}` : '—' },
+            tag(g.label, g.tone),
+          ],
+        };
+      })),
+
+    ...rows.filter((r) => r.cu?.breakAt).map((r) => flagRow({
+      tone: r.cu.breakAt.direction === 'down' ? 'warn' : 'ok',
+      text: `${LIFTS[r.lift].label}: úroveň se odchýlila od výchozí u zápisu z ${r.cu.breakAt.date} `
+        + `(${r.cu.breakAt.direction === 'down' ? 'propad' : 'skok nahoru'} proti průměru ${num(S.toDisplay(r.cu.mean), 1)} ${U()} `
+        + 'z první poloviny řady). Detekce zlomu neříká proč — jen kdy.',
+    })),
+
+    ...rows.filter((r) => r.ts && r.ols && Math.abs(r.ts.perWeek - r.ols.perWeek) > Math.max(1, Math.abs(r.ols.perWeek) * 0.5)).map((r) => flagRow({
+      tone: 'low',
+      text: `${LIFTS[r.lift].label}: obyčejná regrese a Theil–Sen se výrazně liší (${fixed(r.ols.perWeek, 2)} proti ${fixed(r.ts.perWeek, 2)} ${U()}/týden). `
+        + 'To samo o sobě znamená, že v datech sedí odlehlá hodnota — nemoc, zkažený pokus, špatně odhadnuté RPE. '
+        + 'Robustnímu odhadu se dá věřit víc.',
+    })),
+
+    h('p.note',
+      'Sklon spočítaný ze šesti zápisů je sám o sobě odhad se svou nejistotou. Interval spolehlivosti říká, '
+      + 'v jakém rozmezí ten skutečný sklon leží. Obsahuje-li nulu, data prostě neumí rozhodnout, jestli '
+      + 'výkon roste, nebo stojí — a tvrdit směr by bylo víc, než unesou.'),
+
+    h('p.note',
+      'Theil–Sen je medián všech párových sklonů: jeden špatný den ho nevychýlí, protože ho ostatní dvojice '
+      + 'přehlasují. Mann–Kendall se neptá na tvar křivky, jen jestli hodnoty spíš rostou, nebo klesají — '
+      + 'hvězdička znamená průkazný trend na hladině 5 %.'),
+
+    h('p.note', { style: { color: 'var(--ink-3)' } },
+      'Detekce zlomu (CUSUM) hledá okamžik, kdy se úroveň odchýlila od té výchozí. Referenční průměr se bere '
+      + 'z první poloviny řady, ne z celku — kdyby se počítal ze všeho, přišel by poplach už v rostoucí části '
+      + 'jen proto, že leží nad celkovým průměrem. Prahy jsou zvyklosti statistického řízení jakosti, '
+      + 'ne hodnoty odvozené ze silového tréninku.'));
+}
+
+/* =========================================================
+   7 · Poměr podnětu k únavě
+   ========================================================= */
+function sfrCard(a, entries, e1rms) {
+  const rows = COMP_LIFTS.map((k) => C.stimulusFatigue(entries, e1rms, k)).filter(Boolean);
+  if (!rows.length) return h('div');
+
+  const best = rows.reduce((m, r) => (r.ratio > m.ratio ? r : m), rows[0]);
+
+  return card('Poměr podnětu k únavě', {
+    eyebrow: 'Který cvik vrací nejvíc za nejmíň · vlastní heuristika appky',
+  },
+    table(
+      ['Cvik', { label: 'Tvrdých sérií', num: true }, { label: 'Ø intenzita', num: true }, { label: 'INOL', num: true }, { label: 'Poměr', num: true }],
+      rows.map((r) => ({
+        tone: r === best ? 'ok' : null,
+        cells: [
+          h('span', liftDot(r.lift), LIFTS[r.lift].label),
+          { num: true, value: r.hardSets },
+          { num: true, value: `${fixed(r.avgIntensity, 1)} %` },
+          { num: true, value: fixed(r.inol, 2) },
+          { num: true, value: h('b', fixed(r.ratio, 2)) },
+        ],
+      }))),
+
+    h('div.flag', { dataset: { tone: 'warn' } },
+      icon('alert', 16),
+      h('span', h('b', 'Tohle je konstrukce appky, ne převzatá metoda.'), ' '
+        + 'V původní podobě je poměr podnětu k únavě subjektivní škála, kterou kouč vyplní podle pocitu. '
+        + 'Číselná verze nikdy nebyla proti ničemu ověřená. Slouží k tomu, aby šlo porovnat dva cviky '
+        + 'mezi sebou — ne k tomu, aby se z absolutní hodnoty dělaly závěry.')),
+
+    h('p.note',
+      'Podnět se počítá jako počet tvrdých sérií vážený průměrnou intenzitou, únava jako součet INOL. '
+      + 'Vyšší poměr znamená, že cvik vrací víc adaptace za stejnou cenu. Mezi závodníky se ta čísla '
+      + 'porovnávat nedají, mezi cviky jednoho člověka ano.'));
 }

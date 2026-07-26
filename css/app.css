@@ -1377,6 +1377,30 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 .plan-table .inline-select { width: auto; }
 .plan-table .plan-name { width: auto; }
 
+/* Plán a skutečnost vedle sebe. Skupiny odděluje jemná linka a podklad,
+   ne barva — jde o dva pohledy na totéž, ne o dobrou a špatnou hodnotu. */
+.plan-table th.col-plan, .plan-table td.col-plan { background: var(--surface-2); }
+.plan-table th.col-plan:first-of-type, .plan-table td.col-plan:first-of-type { border-left: 1px solid var(--line); }
+.plan-table th.col-real:last-of-type, .plan-table td.col-real:last-of-type { border-right: 1px solid var(--line); }
+.plan-table thead tr:first-child th[colspan] {
+  text-align: center;
+  border-bottom: 1px solid var(--line-soft);
+  letter-spacing: .05em;
+}
+.plan-table thead tr:first-child th.col-real { color: var(--accent-text); }
+.plan-table thead tr:nth-child(2) th { top: 30px; }
+.plan-table td.col-plan .mono { color: var(--ink-2); }
+/* zapsaný řádek se odliší proužkem, ať je v dlouhé tabulce vidět postup */
+.plan-table tr.is-logged td:first-child { position: relative; }
+.plan-table tr.is-logged td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 2px; bottom: 2px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--ok);
+}
+
 .zone-pill {
   display: inline-flex;
   align-items: center;
