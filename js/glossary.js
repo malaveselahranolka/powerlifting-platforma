@@ -593,6 +593,39 @@ export const GLOSSARY = [
 
   /* ---------------- Plánování ---------------- */
   {
+    id: 'doporuceni',
+    group: 'planovani',
+    term: 'Doporučení',
+    full: 'Co appka vidí — a proč nic nepřepisuje',
+    short: 'Signály z ostatních obrazovek seřazené podle naléhavosti, s vyznačenou silou důvodu.',
+    formula: 'naléhavost 1 = jednej teď · 2 = tenhle týden · 3 = dobré vědět\nsíla důvodu: studie / praxe / appka',
+    bands: [
+      { range: 'studie', label: 'Opřeno o recenzovaný zdroj', tone: 'ok' },
+      { range: 'praxe', label: 'Trenérská konvence nebo federační norma, ne výzkum', tone: 'low' },
+      { range: 'appka', label: 'Konstrukce této aplikace — užitečná, nikde neověřená', tone: 'warn' },
+    ],
+    body: 'Appka umí spočítat, že příští týden vychází o pár procent jinak. Neví ale, že závodník minulý týden stěhoval, že ho bolí rameno nebo že za měsíc jede na dovolenou. Automatický přepis plánu by tyhle informace přebil čísly, která je neznají — proto obrazovka jen řekne, co se stalo, co s tím, a jak silný je pro to důvod. Zápis zůstává na koučovi.',
+    how: 'Sílu důvodu čti jako váhu, ne jako pravdivost. Doporučení označené „appka" nemusí být horší rada než to označené „studie" — jen za ním nestojí nic než logika téhle aplikace, takže když ti odporuje vlastní zkušenost, má vyhrát zkušenost. U „studie" je ta laťka opačně.',
+    source: 'Sestavování samo je konstrukce této aplikace. Jednotlivá doporučení nesou sílu důvodu toho pojmu, ze kterého vycházejí — ta je u každého vidět.',
+  },
+  {
+    id: 'frekvence',
+    group: 'planovani',
+    term: 'Frekvence a rozestupy',
+    full: 'Kolikrát týdně cvik a jak daleko od sebe těžké jednotky',
+    short: 'Rozložení do dnů, ze kterého jsou vidět chyby, co v tabulce zaniknou.',
+    formula: 'frekvence = samostatné dny s cvikem ÷ počet týdnů\nrozestup = dny mezi po sobě jdoucími jednotkami nad 85 % maxima',
+    bands: [
+      { range: 'pod 1×/týden', label: 'Technika se na takové frekvenci drží těžko', tone: 'warn' },
+      { range: '2–3×/týden', label: 'Pásmo, na kterém stojí většina programů, které něco dokázaly', tone: 'ok' },
+      { range: 'nad 3×/týden', label: 'Jde to, ale objem v jednotce musí odpovídajícím způsobem klesnout', tone: 'warn' },
+      { range: 'rozestup 1 den', label: 'Dvě těžké jednotky téhož cviku po sobě — skoro vždy plánovací chyba', tone: 'bad' },
+    ],
+    body: 'Některé chyby jsou vidět až z rozložení do dnů, ne z týdenních součtů: dvě těžké jednotky téhož cviku den po dni, tři dny volna uprostřed bloku, plný objem hned po závodě. Dva zápisy stejného cviku v jeden den jsou přitom jedna jednotka, ne dvě — frekvence počítá dny, ne řádky.',
+    how: 'Když appka najde jednodenní rozestup mezi těžkými jednotkami, přetáhni jednu z nich v kalendáři na jiný den. U frekvence platí, že se hýbe spolu s objemem v jednotce: víc jednotek týdně znamená míň práce v každé z nich, ne totéž víckrát.',
+    source: 'Pásmo 2–3 jednotky týdně je popis současné praxe, ne změřená optimální hodnota. U rozestupů appka žádnou hranici netvrdí, protože publikovaná neexistuje — jen ukazuje skutečné mezery.',
+  },
+  {
     id: 'blok',
     group: 'planovani',
     term: 'Bloková periodizace',

@@ -143,12 +143,12 @@ const PATHS = {
   gauge2: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M12 12l4-4'],
 };
 
-export function icon(name, size = 18) {
+export function icon(name, size = 18, extraClass = null) {
   return s('svg', {
     viewBox: '0 0 24 24', width: size, height: size, fill: 'none',
     stroke: 'currentColor', 'stroke-width': 1.6,
     'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-    class: 'ic', 'aria-hidden': 'true',
+    class: extraClass ? `ic ${extraClass}` : 'ic', 'aria-hidden': 'true',
   }, ...(PATHS[name] ?? []).map((d) => s('path', { d })));
 }
 

@@ -18,10 +18,13 @@ import { realityView } from './views/reality.js';
 import { macroView } from './views/macro.js';
 import { readinessView } from './views/readiness.js';
 import { velocityView } from './views/velocity.js';
+import { calendarView } from './views/calendar.js';
+import { adviceView } from './views/advice.js';
 import * as cloud from './cloud.js';
 
 const ROUTES = [
   { id: 'dashboard', label: 'Přehled', ic: 'gauge', title: 'Přehled', sub: 'Kde svěřenec stojí a kam se hýbe.', view: dashboard },
+  { id: 'doporuceni', label: 'Doporučení', ic: 'info', title: 'Doporučení', sub: 'Co appka vidí a co s tím — rozhodnutí zůstává na tobě.', view: adviceView },
   { group: 'Nástroje' },
   { id: 'e1rm', label: 'E1RM', ic: 'calculator', title: 'Kalkulačka E1RM', sub: 'Z výkonu na odhad maxima a zpátky na váhu na ose.', view: e1rmView },
   { id: 'rpe', label: 'RPE tabulka', ic: 'grid', title: 'RPE tabulka', sub: 'Opakování × RPE převedené na procenta a kilogramy.', view: rpeView },
@@ -29,10 +32,11 @@ const ROUTES = [
   { id: 'apre', label: 'APRE', ic: 'zap', title: 'APRE', sub: 'Autoregulace podle skutečných opakování, ne podle pocitu.', view: apreView },
   { id: 'rychlost', label: 'Rychlost', ic: 'gauge2', title: 'Rychlost tyče', sub: 'Profil zatížení a rychlosti, práh poklesu a bezpřístrojová obdoba.', view: velocityView },
   { group: 'Trénink' },
+  { id: 'kalendar', label: 'Kalendář', ic: 'calendar', title: 'Kalendář', sub: 'Jednotky v čase — přesouvání, plánování a rytmus týdne.', view: calendarView },
   { id: 'realita', label: 'Plán vs. realita', ic: 'target', title: 'Plán vs. realita', sub: 'Jak trénink dopadl proti tomu, jak byl napsaný.', view: realityView },
   { id: 'forma', label: 'Únava a forma', ic: 'activity', title: 'Únava a forma', sub: 'Model kondice a únavy, objemové mezníky a signál proti šumu.', view: readinessView },
   { id: 'block', label: 'Analýza bloku', ic: 'layers', title: 'Analýza bloku', sub: 'Objem, intenzita a charakter jednotlivých týdnů.', view: blockView },
-  { id: 'program', label: 'Stavba bloku', ic: 'calendar', title: 'Stavba bloku', sub: 'Vlny, procenta a hotový plán na týdny dopředu.', view: programView },
+  { id: 'program', label: 'Stavba bloku', ic: 'sliders', title: 'Stavba bloku', sub: 'Vlny, procenta a hotový plán na týdny dopředu.', view: programView },
   { id: 'makro', label: 'Makrocyklus', ic: 'trending', title: 'Makrocyklus', sub: 'Bloky v čase, odlehčení a zápasy — sezóna jako celek.', view: macroView },
   { group: 'Závod' },
   { id: 'meet', label: 'Závodní den', ic: 'trophy', title: 'Závodní den', sub: 'Pokusy, rozcvičení a co to udělá se součtem.', view: meetView },

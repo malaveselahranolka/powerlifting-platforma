@@ -359,6 +359,79 @@ export function setWellness(athleteId, date, values) {
   });
 }
 
+/* ---------------------------------------------------------
+   Kalendář — přesouvání a úpravy jednotek
+   --------------------------------------------------------- */
+
+/** Všechny položky svěřence napříč bloky, seřazené podle data. */
+export const allEntries = (athleteId = state.activeAthlete) =>
+  state.entries.filter((e) => e.athleteId === athleteId).sort((a, b) => a.date.localeCompare(b.date));
+
+/** Položky jednoho dne. */
+export const dayEntries = (date, athleteId = state.activeAthlete) =>
+  state.entries.filter((e) => e.athleteId === athleteId && e.date === date);
+
+/**
+ * Přesune celou jednotku na jiný den.
+ *
+ * Posouvá se celý den naráz, ne jednotlivé série — trénink je jedna jednotka
+ * a rozbít ji na půl by znamenalo dvě poloviční jednotky ve dvou dnech, což
+ * skoro nikdy není záměr. Když už na cílovém dni něco je, položky se slijí
+ * dohromady; příště se dá zase rozdělit ručně.
+ */
+export function moveSession(fromDate, toDate, athleteId = state.activeAthlete) {
+  if (!fromDate || !toDate || fromDate === toDate) return 0;
+  let moved = 0;
+  commit((s) => {
+    for (const e of s.entries) {
+      if (e.athleteId === athleteId && e.date === fromDate) { e.date = toDate; moved++; }
+    }
+  });
+  return moved;
+}
+
+/** Přesune jednu položku (řádek), ne celý den. */
+export function moveEntry(entryId, toDate) {
+  commit((s) => {
+    const e = s.entries.find((x) => x.id === entryId);
+    if (e) e.date = toDate;
+  });
+}
+
+export function addEntry(entry) {
+  const id = uid();
+  commit((s) => { s.entries.push({ id, actualRpe: null, actualWeight: null, actualReps: null, ...entry }); });
+  return id;
+}
+
+export function updateEntry(entryId, patch) {
+  commit((s) => {
+    const e = s.entries.find((x) => x.id === entryId);
+    if (e) Object.assign(e, patch);
+  });
+}
+
+export function deleteEntry(entryId) {
+  commit((s) => { s.entries = s.entries.filter((e) => e.id !== entryId); });
+}
+
+/** Smaže celou jednotku i se všemi položkami. */
+export function deleteSession(date, athleteId = state.activeAthlete) {
+  commit((s) => { s.entries = s.entries.filter((e) => !(e.athleteId === athleteId && e.date === date)); });
+}
+
+/** Zkopíruje jednotku na jiný den — plán se přenese, skutečnost ne. */
+export function copySession(fromDate, toDate, athleteId = state.activeAthlete) {
+  const src = dayEntries(fromDate, athleteId);
+  if (!src.length) return 0;
+  commit((s) => {
+    for (const e of src) {
+      s.entries.push({ ...e, id: uid(), date: toDate, actualRpe: null, actualWeight: null, actualReps: null });
+    }
+  });
+  return src.length;
+}
+
 export const total = (a = athlete()) =>
   a ? (a.e1rm.squat ?? 0) + (a.e1rm.bench ?? 0) + (a.e1rm.deadlift ?? 0) : 0;
 

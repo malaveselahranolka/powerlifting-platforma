@@ -1676,6 +1676,334 @@ export function gradeReadiness(z) {
 }
 
 /* =========================================================
+   Kalendář a jednotky
+   ========================================================= */
+
+/**
+ * Souhrn jedné tréninkové jednotky — co se ten den dělá a co už je odvedené.
+ *
+ * `done` je podíl sérií, u kterých je zapsaná skutečnost. Nula znamená
+ * naplánováno, jednička hotovo, mezi tím rozdělaná jednotka.
+ */
+export function sessionSummary(entries, e1rms = {}) {
+  if (!entries.length) return null;
+  const lifts = new Map();
+  let tonnageSum = 0;
+  let sets = 0;
+  let logged = 0;
+  let peak = 0;
+
+  for (const e of entries) {
+    const e1 = e1rms[e.lift] ?? 0;
+    tonnageSum += tonnage(e);
+    sets += e.sets;
+    if (e.actualRpe != null || e.actualWeight != null) logged += e.sets;
+    if (e1 > 0) peak = Math.max(peak, intensity(e, e1));
+    if (!lifts.has(e.lift)) lifts.set(e.lift, { lift: e.lift, sets: 0, top: 0 });
+    const l = lifts.get(e.lift);
+    l.sets += e.sets;
+    l.top = Math.max(l.top, liftedWeight(e));
+  }
+
+  return {
+    date: entries[0].date,
+    items: entries.length,
+    sets,
+    tonnage: round(tonnageSum),
+    peak: round(peak, 1),
+    lifts: [...lifts.values()].sort((a, b) => b.sets - a.sets),
+    done: sets > 0 ? round(logged / sets, 2) : 0,
+    complete: sets > 0 && logged === sets,
+  };
+}
+
+/**
+ * Frekvence na cvik — kolik samostatných dnů týdně se cvik trénuje.
+ *
+ * Současná praxe se sjednotila na dvou až třech jednotkách na soutěžní cvik
+ * týdně; pod jednou se technika neudrží, nad čtyři se u naturálních závodníků
+ * přestává vracet. Není to změřená optimální hodnota, je to pásmo, ve kterém
+ * se pohybuje většina programů, které něco dokázaly.
+ */
+export function liftFrequency(entries, startDate, lifts = ['squat', 'bench', 'deadlift']) {
+  const weekOf = (d) => Math.max(1, Math.floor(daysBetween(startDate, d) / 7) + 1);
+  const weeks = new Set();
+  const byLift = new Map(lifts.map((k) => [k, new Set()]));
+
+  for (const e of entries) {
+    if (!byLift.has(e.lift)) continue;
+    const w = weekOf(e.date);
+    weeks.add(w);
+    byLift.get(e.lift).add(`${w}|${e.date}`);
+  }
+  const weekCount = Math.max(1, weeks.size);
+
+  return lifts.map((k) => ({
+    lift: k,
+    sessions: byLift.get(k).size,
+    perWeek: round(byLift.get(k).size / weekCount, 1),
+  }));
+}
+
+export function gradeFrequency(perWeek) {
+  if (!(perWeek > 0)) return { label: 'Netrénuje se', tone: 'bad', note: 'Cvik v bloku vůbec není.' };
+  if (perWeek < 1) return { label: 'Málo často', tone: 'warn', note: 'Míň než jednou týdně. Technika se na takové frekvenci drží těžko.' };
+  if (perWeek <= 3.4) return { label: 'Obvyklé pásmo', tone: 'ok', note: 'Dvě až tři jednotky týdně jsou frekvence, na které stojí většina programů.' };
+  return { label: 'Vysoká frekvence', tone: 'warn', note: 'Nad tři jednotky týdně na jeden cvik. Jde to, ale objem v jednotce musí odpovídajícím způsobem klesnout.' };
+}
+
+/**
+ * Rozestup mezi těžkými expozicemi stejného cviku.
+ *
+ * Dvě těžké jednotky téhož cviku po sobě jdoucí dny jsou skoro vždycky
+ * plánovací chyba — regenerace nervové soustavy i pojiva potřebuje víc.
+ * Appka tu nehodnotí, kolik dní je „správně", protože publikovaná hodnota
+ * neexistuje; ukazuje jen skutečné rozestupy, aby byla vidět jednodenní
+ * mezera, která tam většinou být neměla.
+ */
+export function heavySpacing(entries, e1rms, { threshold = 85 } = {}) {
+  const byLift = new Map();
+  for (const e of entries) {
+    const e1 = e1rms[e.lift] ?? 0;
+    if (!(e1 > 0) || intensity(e, e1) < threshold) continue;
+    if (!byLift.has(e.lift)) byLift.set(e.lift, new Set());
+    byLift.get(e.lift).add(e.date);
+  }
+
+  return [...byLift.entries()].map(([lift, dates]) => {
+    const sorted = [...dates].sort();
+    const gaps = sorted.slice(1).map((d, i) => daysBetween(sorted[i], d));
+    return {
+      lift,
+      dates: sorted,
+      gaps,
+      minGap: gaps.length ? Math.min(...gaps) : null,
+      avgGap: gaps.length ? round(gaps.reduce((s, g) => s + g, 0) / gaps.length, 1) : null,
+      tight: gaps.filter((g) => g <= 1).length,
+    };
+  });
+}
+
+/* =========================================================
+   Doporučení
+   ========================================================= */
+
+/* Názvy cviků česky. calc.js nezná texty UI, ale doporučení jsou věty —
+   bez skloňování by z nich lezlo „Dvě těžké jednotky squat po sobě". */
+const LIFT_CS = { squat: 'Dřep', bench: 'Benčpres', deadlift: 'Mrtvý tah' };
+const LIFT_GEN = { squat: 'dřepu', bench: 'benče', deadlift: 'mrtvého tahu' };
+
+/**
+ * Poskládá z toho, co appka počítá jinde, seřazený seznam „co s tím".
+ *
+ * ZÁMĚRNĚ NIC NEPŘEPISUJE. Appka umí spočítat, že příští týden vychází o čtyři
+ * procenta levněji — ale jestli se to má promítnout do plánu, ví jenom kouč.
+ * Zná věci, které v datech nejsou: že závodník minulý týden stěhoval, že ho
+ * bolí rameno, že za měsíc jede na dovolenou. Automatický přepis by tyhle
+ * informace přebil čísly, která je neznají.
+ *
+ * Každé doporučení proto nese tři věci: co se stalo, co s tím, a jak silný
+ * je pro to důvod. Poslední z nich je nejdůležitější — bez ní by pásmo
+ * převzaté z dotazníku na deseti lidech vypadalo stejně závazně jako
+ * koeficient z osmisettisícového vzorku.
+ *
+ * `weight` je síla důvodu:
+ *   'studie' — recenzovaný zdroj
+ *   'praxe'  — trenérská konvence nebo federační norma
+ *   'appka'  — konstrukce této aplikace
+ */
+export function recommendations({
+  athlete, block, entries = [], e1rms = {}, meets = [], wellness = [], e1rmLog = [], today = null,
+} = {}) {
+  const now = today ?? iso(new Date());
+  const out = [];
+  const add = (r) => out.push(r);
+
+  const blockEntries = block ? entries.filter((e) => e.blockId === block.id) : entries;
+  const hasLogs = entries.some((e) => e.actualRpe != null);
+
+  /* ---- 1. závod na obzoru ---- */
+  const nextMeet = meets.filter((m) => m.date >= now).sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (nextMeet) {
+    const days = daysBetween(now, nextMeet.date);
+    if (athlete?.bw > 0) {
+      const wc = weightClass(athlete.bw, athlete.sex);
+      if (wc.headroom != null && wc.headroom < 0.5 && days <= 42) {
+        add({
+          id: 'vaha-limit', priority: 1, tone: 'bad', weight: 'studie',
+          title: `Do limitu kategorie zbývá ${num2(wc.headroom, 1)} kg`,
+          why: `Závod je za ${days} dnů a váha je prakticky na hraně. Každé kolísání přes noc znamená riziko, že se závodník neváží.`,
+          action: 'Rozhodni teď, jestli se drží kategorie, nebo jde nahoru — na poslední týden je na to pozdě.',
+          screen: 'meet',
+        });
+      }
+    }
+    if (days <= 28 && days >= 7) {
+      const t = blockEntries.length >= 2 ? taperCheck(analyzeBlock(blockEntries, e1rms, block?.start).weeks) : null;
+      if (!t || t.drop < 30) {
+        add({
+          id: 'taper', priority: 1, tone: 'warn', weight: 'studie',
+          title: `Závod za ${days} dnů, taper zatím nesedí`,
+          why: t
+            ? `Poslední týden ubral ${num2(t.drop, 0)} % objemu. Šampioni v průzkumu ubírali kolem 50 %.`
+            : 'V plánu zatím není vidět snížení objemu před závodem.',
+          action: 'Otevři ladění formy a vyber model. Pokud je slabinou mrtvý tah, ber exponenciální — v řízeném pokusu jako jediný zvedl i tah.',
+          screen: 'meet',
+        });
+      }
+    }
+  }
+
+  /* ---- 2. strop regenerace ---- */
+  if (hasLogs && block) {
+    const creep = rpeCreep(blockEntries, block.start);
+    const hs = hardSets(blockEntries, e1rms, block.start);
+    const sumSets = (w) => (w ? Object.values(w.lifts).reduce((s, v) => s + v, 0) : null);
+    // trend nejlepšího odhadu maxima — bez něj by signál stál jen na dvou
+    // známkách ze tří a „dvě ze dvou" by znamenalo něco jiného než „dvě ze tří"
+    const trendPts = e1rmLog
+      .slice()
+      .sort((x, y) => x.date.localeCompare(y.date))
+      .map((x) => ({ date: x.date, value: x.value }));
+    const m = mrvSignal({
+      e1rmTrend: trendPts.length >= 4 ? plateauCheck(trendPts) : null,
+      creepNow: creep.at(-1)?.avg,
+      creepPrev: creep.at(-2)?.avg,
+      hooperNow: (() => { const w = wellness.find((x) => x.date === now); return w ? hooperIndex(w) : null; })(),
+      hooperBaseline: hooperBaseline(wellness, now),
+      hardSetsNow: sumSets(hs.at(-1)),
+      hardSetsPrev: sumSets(hs.at(-2)),
+    });
+    if (m.reached) {
+      add({
+        id: 'mrv', priority: 1, tone: 'bad', weight: 'appka',
+        title: 'Objem přerostl regeneraci',
+        why: `Sedí ${m.score} ze ${m.max} nezávislých známek naráz: ${m.signals.filter((x) => x.hit).map((x) => x.label).join(', ')}.`,
+        action: 'Týden odlehčení — objem dolů zhruba o polovinu, intenzitu držet. Další série teď nepřidá adaptaci, jen únavu.',
+        screen: 'forma',
+      });
+    }
+  }
+
+  /* ---- 3. rozestupy těžkých jednotek ---- */
+  for (const s of heavySpacing(blockEntries, e1rms)) {
+    if (s.tight > 0) {
+      add({
+        id: `rozestup-${s.lift}`, priority: 1, tone: 'warn', weight: 'praxe',
+        title: `Dvě těžké jednotky ${LIFT_GEN[s.lift]} po sobě`,
+        why: `${s.tight}× jdou dvě jednotky nad 85 % maxima den po dni.`,
+        action: 'Přetáhni jednu z nich v kalendáři na jiný den. Publikovaný správný rozestup neexistuje, ale jednodenní tam většinou být neměl.',
+        screen: 'kalendar',
+      });
+    }
+  }
+
+  /* ---- 4. úprava příštího týdne ---- */
+  if (hasLogs && block) {
+    const creep = rpeCreep(blockEntries, block.start);
+    const lastWeek = creep.at(-1)?.week;
+    if (lastWeek) {
+      for (const lift of ['squat', 'bench', 'deadlift']) {
+        const adj = weeklyAdjustment(blockEntries, lift, lastWeek, block.start);
+        if (!adj || Math.abs(adj.pctChange) < 2) continue;
+        add({
+          id: `uprava-${lift}`, priority: 2, tone: adj.pctChange < 0 ? 'warn' : 'ok', weight: 'appka',
+          title: `${LIFT_CS[lift]}: příští týden ${adj.pctChange < 0 ? 'ubrat' : 'přidat'} ${num2(Math.abs(adj.pctChange), 1)} %`,
+          why: `Skutečný odhad maxima z odvedených sérií je ${num2(adj.avgReal, 1)} kg proti plánovaným ${num2(adj.avgPlan, 1)} kg (${adj.n} ${adj.n === 1 ? 'série' : 'sérií'}).`,
+          action: 'Uprav váhy ve Stavbě bloku. Appka to schválně nepřepisuje sama — ty víš, jestli za tím byl špatný týden, nebo skutečný posun formy.',
+          screen: 'program',
+        });
+      }
+    }
+  }
+
+  /* ---- 5. zaostávající cvik ---- */
+  if (athlete) {
+    const bal = sbdBalance(athlete.e1rm ?? {}, { sex: athlete.sex, bw: athlete.bw, equipment: athlete.equipment });
+    for (const l of bal?.lifts.filter((x) => x.state === 'low') ?? []) {
+      add({
+        id: `zaostava-${l.lift}`, priority: 2, tone: 'warn', weight: 'studie',
+        title: `${LIFT_CS[l.lift]} nese ${num2(l.pct, 1)} % součtu`,
+        why: `Elitní závodníci ve stejné kategorii mají ${num2(l.min, 1)} až ${num2(l.max, 1)} %.`,
+        action: 'Ber to jako otázku, ne jako cíl. Studie ukazuje souvislost, ne příčinu — a délka končetin poměr posune legitimně a natrvalo.',
+        screen: 'forma',
+      });
+    }
+  }
+
+  /* ---- 6. frekvence ---- */
+  if (block) {
+    for (const f of liftFrequency(blockEntries, block.start)) {
+      const g = gradeFrequency(f.perWeek);
+      if (g.tone === 'ok') continue;
+      add({
+        id: `frekvence-${f.lift}`, priority: 2, tone: 'warn', weight: 'praxe',
+        title: `${LIFT_CS[f.lift]}: ${num2(f.perWeek, 1)}× týdně`,
+        why: g.note,
+        action: f.perWeek < 1
+          ? 'Přidej druhou jednotku týdně — v kalendáři na den, kde není nic těžkého.'
+          : 'Když je jednotek hodně, musí objem v každé z nich odpovídajícím způsobem klesnout.',
+        screen: 'kalendar',
+      });
+    }
+  }
+
+  /* ---- 7. chybějící zápisy ---- */
+  const missing = [...new Set(entries.filter((e) => e.date < now && e.actualRpe == null).map((e) => e.date))];
+  if (missing.length >= 3) {
+    add({
+      id: 'zapisy', priority: 2, tone: 'low', weight: 'appka',
+      title: `${missing.length} proběhlých jednotek nemá zápis`,
+      why: 'Bez skutečného RPE neběží odchylka RPE, denní připravenost ani model únavy — polovina appky zůstane slepá.',
+      action: 'Dopiš je v Plán vs. realita. Stačí RPE; váhu a opakování jen tam, kde se lišily.',
+      screen: 'realita',
+    });
+  }
+
+  /* ---- 8. trend a šum ---- */
+  return out.sort((a, b) => a.priority - b.priority);
+}
+
+/**
+ * Doporučení, která vyžadují historii maxim — jsou oddělená, protože
+ * pracují s jiným zdrojem dat než trénink v bloku.
+ */
+export function trendRecommendations(e1rmLog, lifts = ['squat', 'bench', 'deadlift']) {
+  const out = [];
+  for (const lift of lifts) {
+    const pts = e1rmLog.filter((x) => x.lift === lift)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((x) => ({ date: x.date, value: x.value }));
+    if (pts.length < 4) continue;
+
+    const pl = plateauCheck(pts);
+    const noise = measurementNoise(pts);
+    const label = LIFT_CS[lift];
+
+    if (pl?.plateau) {
+      out.push({
+        id: `plateau-${lift}`, priority: 2, tone: 'warn', weight: 'appka',
+        title: `${label} stojí`,
+        why: 'Trend není průkazný a i kdyby byl, za čtyři týdny by nedal prokazatelnou změnu.',
+        action: 'Zvaž změnu podnětu: jinou variantu, jiný rozsah opakování, nebo víc objemu — podle toho, co dosud dostával.',
+        screen: 'forma',
+      });
+    }
+    if (noise?.floored) {
+      out.push({
+        id: `sum-${lift}`, priority: 3, tone: 'low', weight: 'studie',
+        title: `${label}: maxima se testují moc často`,
+        why: `Prokazatelná změna je ${num2(noise.sdc, 1)} kg. Menší posun se nedá odlišit od dobrého dne.`,
+        action: 'Nech mezi testy tolik času, kolik zabere zlepšení nad tímhle prahem.',
+        screen: 'forma',
+      });
+    }
+  }
+  return out;
+}
+
+
+/* =========================================================
    Taper — plán posledních týdnů
    ========================================================= */
 
