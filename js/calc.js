@@ -1676,6 +1676,115 @@ export function gradeReadiness(z) {
 }
 
 /* =========================================================
+   Kalendář a jednotky
+   ========================================================= */
+
+/**
+ * Souhrn jedné tréninkové jednotky — co se ten den dělá a co už je odvedené.
+ *
+ * `done` je podíl sérií, u kterých je zapsaná skutečnost. Nula znamená
+ * naplánováno, jednička hotovo, mezi tím rozdělaná jednotka.
+ */
+export function sessionSummary(entries, e1rms = {}) {
+  if (!entries.length) return null;
+  const lifts = new Map();
+  let tonnageSum = 0;
+  let sets = 0;
+  let logged = 0;
+  let peak = 0;
+
+  for (const e of entries) {
+    const e1 = e1rms[e.lift] ?? 0;
+    tonnageSum += tonnage(e);
+    sets += e.sets;
+    if (e.actualRpe != null || e.actualWeight != null) logged += e.sets;
+    if (e1 > 0) peak = Math.max(peak, intensity(e, e1));
+    if (!lifts.has(e.lift)) lifts.set(e.lift, { lift: e.lift, sets: 0, top: 0 });
+    const l = lifts.get(e.lift);
+    l.sets += e.sets;
+    l.top = Math.max(l.top, liftedWeight(e));
+  }
+
+  return {
+    date: entries[0].date,
+    items: entries.length,
+    sets,
+    tonnage: round(tonnageSum),
+    peak: round(peak, 1),
+    lifts: [...lifts.values()].sort((a, b) => b.sets - a.sets),
+    done: sets > 0 ? round(logged / sets, 2) : 0,
+    complete: sets > 0 && logged === sets,
+  };
+}
+
+/**
+ * Frekvence na cvik — kolik samostatných dnů týdně se cvik trénuje.
+ *
+ * Současná praxe se sjednotila na dvou až třech jednotkách na soutěžní cvik
+ * týdně; pod jednou se technika neudrží, nad čtyři se u naturálních závodníků
+ * přestává vracet. Není to změřená optimální hodnota, je to pásmo, ve kterém
+ * se pohybuje většina programů, které něco dokázaly.
+ */
+export function liftFrequency(entries, startDate, lifts = ['squat', 'bench', 'deadlift']) {
+  const weekOf = (d) => Math.max(1, Math.floor(daysBetween(startDate, d) / 7) + 1);
+  const weeks = new Set();
+  const byLift = new Map(lifts.map((k) => [k, new Set()]));
+
+  for (const e of entries) {
+    if (!byLift.has(e.lift)) continue;
+    const w = weekOf(e.date);
+    weeks.add(w);
+    byLift.get(e.lift).add(`${w}|${e.date}`);
+  }
+  const weekCount = Math.max(1, weeks.size);
+
+  return lifts.map((k) => ({
+    lift: k,
+    sessions: byLift.get(k).size,
+    perWeek: round(byLift.get(k).size / weekCount, 1),
+  }));
+}
+
+export function gradeFrequency(perWeek) {
+  if (!(perWeek > 0)) return { label: 'Netrénuje se', tone: 'bad', note: 'Cvik v bloku vůbec není.' };
+  if (perWeek < 1) return { label: 'Málo často', tone: 'warn', note: 'Míň než jednou týdně. Technika se na takové frekvenci drží těžko.' };
+  if (perWeek <= 3.4) return { label: 'Obvyklé pásmo', tone: 'ok', note: 'Dvě až tři jednotky týdně jsou frekvence, na které stojí většina programů.' };
+  return { label: 'Vysoká frekvence', tone: 'warn', note: 'Nad tři jednotky týdně na jeden cvik. Jde to, ale objem v jednotce musí odpovídajícím způsobem klesnout.' };
+}
+
+/**
+ * Rozestup mezi těžkými expozicemi stejného cviku.
+ *
+ * Dvě těžké jednotky téhož cviku po sobě jdoucí dny jsou skoro vždycky
+ * plánovací chyba — regenerace nervové soustavy i pojiva potřebuje víc.
+ * Appka tu nehodnotí, kolik dní je „správně", protože publikovaná hodnota
+ * neexistuje; ukazuje jen skutečné rozestupy, aby byla vidět jednodenní
+ * mezera, která tam většinou být neměla.
+ */
+export function heavySpacing(entries, e1rms, { threshold = 85 } = {}) {
+  const byLift = new Map();
+  for (const e of entries) {
+    const e1 = e1rms[e.lift] ?? 0;
+    if (!(e1 > 0) || intensity(e, e1) < threshold) continue;
+    if (!byLift.has(e.lift)) byLift.set(e.lift, new Set());
+    byLift.get(e.lift).add(e.date);
+  }
+
+  return [...byLift.entries()].map(([lift, dates]) => {
+    const sorted = [...dates].sort();
+    const gaps = sorted.slice(1).map((d, i) => daysBetween(sorted[i], d));
+    return {
+      lift,
+      dates: sorted,
+      gaps,
+      minGap: gaps.length ? Math.min(...gaps) : null,
+      avgGap: gaps.length ? round(gaps.reduce((s, g) => s + g, 0) / gaps.length, 1) : null,
+      tight: gaps.filter((g) => g <= 1).length,
+    };
+  });
+}
+
+/* =========================================================
    Taper — plán posledních týdnů
    ========================================================= */
 

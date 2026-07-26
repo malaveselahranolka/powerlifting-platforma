@@ -1425,6 +1425,145 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 }
 
 /* =========================================================
+   Kalendář
+   ========================================================= */
+
+.ic.rot90 { transform: rotate(90deg); }
+.ic.rot270 { transform: rotate(-90deg); }
+
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.cal-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: center;
+  padding: 4px 0 6px;
+}
+
+.cal-cell {
+  position: relative;
+  min-height: 84px;
+  padding: 5px 6px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: border-color .12s var(--ease), background-color .12s var(--ease);
+}
+
+.cal-cell:hover { border-color: var(--axis); }
+.cal-cell.is-out { background: transparent; border-style: dashed; border-color: var(--line-soft); cursor: default; }
+.cal-cell.is-out:hover { border-color: var(--line-soft); }
+
+/* dnešek nese kroužek u čísla, ne obarvenou buňku — jinak by soupeřil
+   s vybraným dnem a s obsazeností */
+.cal-cell[data-today='true'] .cal-day {
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 100px;
+  padding: 0 5px;
+}
+
+.cal-cell[data-selected='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.cal-cell[data-drop='true'] {
+  border-color: var(--accent);
+  border-style: dashed;
+  background: var(--accent-soft);
+}
+
+.cal-day {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  align-self: flex-start;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.cal-cell[data-has='true'] .cal-day { color: var(--ink-2); }
+
+/* probíhající blok — tenký proužek u levé hrany */
+.cal-block {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--zone-2);
+}
+
+.cal-meet { position: absolute; top: 5px; right: 6px; color: var(--accent-text); display: flex; }
+
+.cal-session {
+  margin-top: auto;
+  padding: 4px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border-left: 2px solid var(--ink-3);
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal-session:active { cursor: grabbing; }
+.cal-cell[data-state='planned'] .cal-session { border-left-color: var(--info); }
+.cal-cell[data-state='partial'] .cal-session { border-left-color: var(--warn); }
+.cal-cell[data-state='done'] .cal-session { border-left-color: var(--ok); }
+
+.cal-dots { display: flex; gap: 3px; }
+.cal-dots .lift-dot { margin-right: 0; }
+
+.cal-vol {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s3);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.cal-key { display: flex; align-items: center; gap: 5px; }
+.cal-key i { width: 3px; height: 12px; border-radius: 2px; background: var(--ink-3); }
+.cal-key i[data-state='planned'] { background: var(--info); }
+.cal-key i[data-state='partial'] { background: var(--warn); }
+.cal-key i[data-state='done'] { background: var(--ok); }
+.cal-key .ic { color: var(--accent-text); }
+
+@media (max-width: 860px) {
+  .cal { gap: 2px; }
+  .cal-cell { min-height: 62px; padding: 3px 4px 4px; }
+  .cal-vol { display: none; }
+  .cal-head { font-size: 10px; }
+}
+
+/* =========================================================
    Paleta příkazů (⌘K)
    ========================================================= */
 

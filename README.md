@@ -28,7 +28,7 @@ i na statickém hostingu jako GitHub Pages. Kód a nastavení jsou v [js/cloud.j
 node verify.mjs
 ```
 
-Projde 310 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
+Projde 332 kontrol. Referenční hodnoty se počítají nezávisle přímo ze zveřejněných
 koeficientů, ne z aplikace — kdyby se ve `js/calc.js` něco rozbilo, test to chytí.
 Ověřuje se RPE tabulka, všech osm variant IPF GL, DOTS, Wilks, sedm vzorců pro
 odhad 1RM, INOL, Prilepinovy zóny, ACWR i EWMA, monotonie a strain, APRE, těžké
@@ -40,7 +40,8 @@ koeficienty, denní připravenost, signál stropu regenerace, tabulka rychlostí
 odhad maxima z profilu zatížení a rychlosti i prahy poklesu, interval spolehlivosti
 sklonu (proti nezávislé regresi), Theil–Sen, Mann–Kendall, detekce zlomu, modely
 taperu, časová osa závodního dne, percentily síly, 5/3/1, rozložení intenzit,
-index specifičnosti, tempo nárůstu a kalkulačka shazování váhy.
+index specifičnosti, tempo nárůstu, kalkulačka shazování váhy, souhrn jednotky,
+frekvence na cvik a rozestupy těžkých expozic.
 
 ## Co to umí
 
@@ -52,6 +53,7 @@ index specifičnosti, tempo nárůstu a kalkulačka shazování váhy.
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
 | **Rychlost** | Profil zatížení a rychlosti, odhad maxima z profilu, práh poklesu v sérii a bezpřístrojová obdoba z deníku |
+| **Kalendář** | Jednotky v čase — měsíční mřížka, přesun tažením, přidávání a mazání cviků, kopírování jednotky, frekvence na cvik a rozestupy těžkých jednotek |
 | **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, odhad maxima ze skutečných sérií, doporučení podle skutečného výkonu |
 | **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, interval spolehlivosti a robustní odhad trendu, detekce zlomu, poměr podnětu k únavě, rozložení součtu proti elitě |
 | **Analýza bloku** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
@@ -60,7 +62,7 @@ index specifičnosti, tempo nárůstu a kalkulačka shazování váhy.
 | **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík, časová osa podle pořadí v nominaci, ladění formy ve třech modelech, kalkulačka shazování váhy, projekce součtu |
 | **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, percentily relativní síly, vliv tělesné váhy na koeficient |
 | **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, zálohy |
-| **Vysvětlivky** | 50 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
+| **Vysvětlivky** | 51 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
 
@@ -100,6 +102,8 @@ index specifičnosti, tempo nárůstu a kalkulačka shazování váhy.
 | 5/3/1 | procenta z tréninkového maxima (90 % z 1RM) | Wendler (2009), trenérská praxe |
 | Rozložení intenzit | histogram zvedů po 5 % pásmech proti Sheikově normě | Sheikovy programy, trenérská praxe |
 | Index specifičnosti | tonáž soutěžních cviků ÷ celková tonáž | odvozeno z blokové periodizace |
+| Frekvence na cvik | samostatné dny s cvikem ÷ počet týdnů | popis současné praxe (2–3×/týden), ne změřené optimum |
+| Rozestup těžkých jednotek | dny mezi jednotkami nad 85 % maxima | appka žádnou hranici netvrdí — publikovaná neexistuje |
 | Shazování váhy | (váha − limit) ÷ váha; pásma 2 / 5 % | Campbell a kol. (2025), přehledy pro pásmo 3–5 % |
 | Váhově závislý 1RM | w · (1 + (r−1)^0,85 ÷ (−2,55 + 4,58·ln w)) | Marzagão (2026), arXiv:2603.17495 — preprint, volitelný |
 | Pokusy | 91 % / 96,5 % / 102 % z E1RM | rozbor MS IPF 2012–2019 |

@@ -766,6 +766,59 @@ group('Poměr podnětu k únavě a osmá rovnice 1RM');
     Math.abs(inLb - C.E1RM.weightDependent(100, 5)) > 1 ? 1 : 0, 1, 0);
 }
 
+group('Kalendář a rytmus týdne');
+{
+  const mk = (date, lift, sets, reps, weight, extra = {}) =>
+    ({ date, lift, sets, reps, weight, rpe: 8, ...extra });
+  const e1 = { squat: 200, bench: 140, deadlift: 240 };
+
+  const day = [mk('2026-03-02', 'squat', 4, 5, 160), mk('2026-03-02', 'bench', 3, 8, 100)];
+  const sum = C.sessionSummary(day, e1);
+  near('sérií v jednotce', sum.sets, 7, 0);
+  near('tonáž jednotky', sum.tonnage, 4 * 5 * 160 + 3 * 8 * 100, 0.5);
+  near('špička je nejvyšší relativní intenzita', sum.peak, 80, 0.1);
+  near('nezapsaná jednotka má hotovo 0', sum.done, 0, 0.001);
+  near('prázdný den vrací null', C.sessionSummary([], e1) === null ? 1 : 0, 1, 0);
+
+  const half = [mk('2026-03-02', 'squat', 4, 5, 160, { actualRpe: 8 }), mk('2026-03-02', 'bench', 4, 8, 100)];
+  near('rozdělaná jednotka má hotovo půl', C.sessionSummary(half, e1).done, 0.5, 0.001);
+  near('a není označená jako hotová', C.sessionSummary(half, e1).complete ? 0 : 1, 1, 0);
+  const all = half.map((x) => ({ ...x, actualRpe: 8 }));
+  near('celá zapsaná jednotka je hotová', C.sessionSummary(all, e1).complete ? 1 : 0, 1, 0);
+
+  // frekvence: dřep dvakrát týdně ve dvou týdnech = 2,0
+  const twoWeeks = [
+    mk('2026-03-02', 'squat', 4, 5, 160), mk('2026-03-05', 'squat', 3, 5, 150),
+    mk('2026-03-09', 'squat', 4, 5, 165), mk('2026-03-12', 'squat', 3, 5, 155),
+    mk('2026-03-04', 'bench', 4, 5, 110),
+  ];
+  const freq = C.liftFrequency(twoWeeks, '2026-03-02');
+  near('dřep dvakrát týdně', freq.find((f) => f.lift === 'squat').perWeek, 2, 0.05);
+  near('bench jednou za dva týdny', freq.find((f) => f.lift === 'bench').perWeek, 0.5, 0.05);
+  near('cvik, co v bloku není, má nulu', freq.find((f) => f.lift === 'deadlift').perWeek, 0, 0.001);
+  // dva zápisy téhož cviku v jeden den jsou jedna jednotka, ne dvě
+  const sameDay = C.liftFrequency([mk('2026-03-02', 'squat', 4, 5, 160), mk('2026-03-02', 'squat', 3, 3, 180)], '2026-03-02');
+  near('dvě položky v jednom dni jsou jedna jednotka', sameDay.find((f) => f.lift === 'squat').sessions, 1, 0);
+
+  near('dvě až tři jednotky týdně jsou obvyklé pásmo', C.gradeFrequency(2.5).tone === 'ok' ? 1 : 0, 1, 0);
+  near('půl jednotky týdně je málo', C.gradeFrequency(0.5).tone === 'warn' ? 1 : 0, 1, 0);
+  near('čtyři jednotky týdně jsou vysoká frekvence', C.gradeFrequency(4).tone === 'warn' ? 1 : 0, 1, 0);
+
+  // rozestupy těžkých expozic: 180/200 = 90 %, 150/200 = 75 %
+  const heavy = [
+    mk('2026-03-02', 'squat', 1, 1, 180), mk('2026-03-03', 'squat', 1, 1, 185),
+    mk('2026-03-10', 'squat', 1, 1, 182), mk('2026-03-05', 'squat', 4, 5, 150),
+  ];
+  const sp = C.heavySpacing(heavy, e1)[0];
+  near('lehká jednotka se mezi těžké nepočítá', sp.dates.length, 3, 0);
+  near('nejmenší rozestup je jeden den', sp.minGap, 1, 0);
+  near('a je označený jako těsný', sp.tight, 1, 0);
+  near('mezi 2. a 3. březnem je 1 den', sp.gaps[0], 1, 0);
+  near('mezi 3. a 10. březnem je 7 dnů', sp.gaps[1], 7, 0);
+  near('průměrný rozestup je 4 dny', sp.avgGap, 4, 0.001);
+  near('cvik bez známého maxima se přeskočí', C.heavySpacing(heavy, {}).length, 0, 0);
+}
+
 /* ---------------------------------------------------------------- */
 console.log(
   failed
