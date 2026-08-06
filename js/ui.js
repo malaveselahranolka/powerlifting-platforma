@@ -288,18 +288,23 @@ export function toast(msg, tone = 'ok') {
 
 const THEME_KEY = 'pwr.theme';
 
-/** 'light' | 'dark' — buď vlastní volba, nebo to, co říká systém. */
+/**
+ * 'light' | 'dark' — buď vlastní volba, nebo to, co říká systém.
+ *
+ * Bez uložené volby je to tma. Nastavení systému se tady záměrně
+ * nečte: appka má jednu podobu a přepínač na očích, takže „vypadá
+ * jinak, než jsem ji nechal" nemůže nastat.
+ */
 export function readTheme() {
   const stored = document.documentElement.dataset.theme;
-  if (stored === 'light' || stored === 'dark') return stored;
-  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return stored === 'light' ? 'light' : 'dark';
 }
 
 export function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem(THEME_KEY, theme); } catch { /* zakázané úložiště */ }
   const meta = document.querySelector('meta[name="theme-color"]:not([media])');
-  if (meta) meta.content = theme === 'dark' ? '#0d0e10' : '#f4f5f6';
+  if (meta) meta.content = theme === 'dark' ? '#0b0e11' : '#eff1f3';
 }
 
 /**

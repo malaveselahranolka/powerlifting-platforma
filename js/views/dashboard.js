@@ -1,9 +1,10 @@
-import { h, card, stat, icon, num, fixed, bigNum, tag, table, field, select, clear, shortDate } from '../ui.js';
+import { h, card, stat, icon, num, fixed, bigNum, tag, table, clear, shortDate } from '../ui.js';
 import { lineChart, stackedBars, barbell } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS, WELLNESS_ITEMS } from '../data.js';
-import { W, U, Wu, liftDot, liftName, flagRow, empty } from './_util.js';
+import { W, U, Wu, liftDot, liftName, empty } from './_util.js';
+import { adviceFor } from './advice.js';
 
 export function dashboard(nav) {
   const root = h('div.view');
@@ -44,6 +45,9 @@ function build(view, render, nav) {
           h('div.faint.mono', { style: { fontSize: '11px', textAlign: 'center' } },
             `${liftName(nextSet)} · ${nextSet.sets}×${nextSet.reps} @ ${Wu(nextSet.weight)} · RPE ${nextSet.rpe}`))))));
 
+  /* ---- co je potřeba řešit ---- */
+  view.append(triage(a, nav));
+
   /* ---- osobní maxima ---- */
   view.append(h('div.grid.g4',
     ...COMP_LIFTS.map((k) => {
@@ -79,7 +83,7 @@ function build(view, render, nav) {
         h('div.faint.mono', { style: { fontSize: '11px' } }, blk.name));
     })()));
 
-  /* ---- objem bloku + zatížení ---- */
+  /* ---- objem bloku + co je tenhle týden ---- */
   view.append(h('div.grid.g-side',
     card(blk ? blk.name : 'Blok', { eyebrow: 'Tonáž po týdnech', class: 'is-flush' },
       analysis.weeks.length
@@ -93,20 +97,8 @@ function build(view, render, nav) {
                 h('div.split-item', h('i', { style: { background: LIFTS[k].color } }), h('span.split-name', LIFTS[k].label)))))
         : h('div.chart-empty', 'Blok zatím nemá žádné jednotky.')),
 
-    card('Jak to reálně šlo', {
-      eyebrow: 'Skutečné RPE proti plánu',
-      action: h('button.btn.btn-sm', { onclick: () => nav('realita') }, icon('target', 14), 'Otevřít'),
-    },
-      lastCreep
-        ? h('div',
-            h('div.grid.g2',
-              stat('Odchylka RPE (poslední týden)', `${lastCreep.avg >= 0 ? '+' : '−'}${num(Math.abs(lastCreep.avg), 2)}`, cg.label, cg.tone),
-              stat('Zapsaných sérií', creep.reduce((s, w) => s + w.n, 0), `z ${entries.length}`)),
-            h('p.note', 'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí.'))
-        : h('div.chart-empty', 'Zatím žádné zapsané skutečné RPE. Přidej ho v Plán vs. realita.'))));
-
-  /* ---- pohoda (Hooperův index) ---- */
-  view.append(wellnessCard(a, render));
+    card('Tento týden', { eyebrow: 'Dnes a zbytek týdne' },
+      thisWeek(entries, nav))));
 
   /* ---- trend E1RM ---- */
   const logs = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
@@ -126,14 +118,63 @@ function build(view, render, nav) {
               ...COMP_LIFTS.map((k) => h('div.split-item', h('i', { style: { background: LIFTS[k].color } }), h('span.split-name', LIFTS[k].label)))))
         : h('div.chart-empty', 'Zapiš aspoň dvě maxima, ať je co kreslit.')),
 
-    card('Tento týden', { eyebrow: 'Dnes a zbytek týdne' },
-      thisWeek(entries, nav))));
+    h('div.stack',
+      card('Jak to reálně šlo', {
+        eyebrow: 'Skutečné RPE proti plánu',
+        action: h('button.btn.btn-sm', { onclick: () => nav('realita') }, icon('target', 14), 'Otevřít'),
+      },
+        lastCreep
+          ? h('div',
+              h('div.grid.g2',
+                stat('Odchylka RPE (poslední týden)', `${lastCreep.avg >= 0 ? '+' : '−'}${num(Math.abs(lastCreep.avg), 2)}`, cg.label, cg.tone),
+                stat('Zapsaných sérií', creep.reduce((s, w) => s + w.n, 0), `z ${entries.length}`)),
+              h('p.note', 'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí.'))
+          : h('div.chart-empty', 'Zatím žádné zapsané skutečné RPE. Přidej ho v Plán vs. realita.')),
 
-  /* ---- hlášky ---- */
-  if (analysis.weeks.length) {
-    view.append(card('Co si hlídat', { eyebrow: 'Automatická kontrola bloku', action: h('button.btn.btn-sm', { onclick: () => nav('block') }, 'Otevřít analýzu') },
-      ...C.blockFlags(analysis, (k) => LIFTS[k]?.label ?? k).map(flagRow)));
+      wellnessCard(a, render, nav))));
+}
+
+/**
+ * Nejnaléhavější doporučení rovnou na Přehledu.
+ *
+ * Dřív tady byla „Automatická kontrola bloku" — seznam, ve kterém pět
+ * řádků z šesti hlásilo, že je všechno v pořádku. Zelená fajfka za nic
+ * neplatí: kdo ji vidí pokaždé, přestane číst i ten šestý řádek, na
+ * kterém záleží. Teď se ukazuje jen to, co hoří, a zbytek je jedno číslo
+ * s odkazem.
+ */
+function triage(a, nav) {
+  const all = adviceFor(a);
+  const urgent = all.filter((r) => r.priority === 1);
+  const rest = all.length - urgent.length;
+
+  const open = h('button.btn.btn-sm', { onclick: () => nav('prehled/doporuceni') },
+    all.length ? `Všech ${all.length} doporučení` : 'Otevřít doporučení', icon('arrow', 13));
+
+  if (!urgent.length) {
+    return h('section.card.triage', { dataset: { tone: 'calm' } },
+      h('div.card-body.triage-body',
+        icon('check', 18),
+        h('div.triage-text',
+          h('b', 'Nic, co by hořelo.'),
+          ' ',
+          rest ? `${rest} ${rest === 1 ? 'poznámka' : rest < 5 ? 'poznámky' : 'poznámek'} k dalšímu bloku.` : 'Appka zatím nemá dost zápisů, aby měla co říct.'),
+        open));
   }
+
+  return h('section.card.triage', { dataset: { tone: 'hot' } },
+    h('header.card-head',
+      h('div',
+        h('div.eyebrow', 'Co je potřeba řešit'),
+        h('h2.card-title', urgent.length === 1 ? 'Jedna věc nepočká' : `${urgent.length} věci nepočkají`)),
+      open),
+    h('div.card-body',
+      ...urgent.slice(0, 3).map((r) => h('div.triage-row',
+        icon('alert', 16),
+        h('div.triage-row-text',
+          h('b', r.title),
+          h('span', r.action)),
+        r.screen && h('button.btn.btn-sm.btn-ghost', { onclick: () => nav(r.screen) }, 'Otevřít', icon('arrow', 13))))));
 }
 
 /**
@@ -142,7 +183,7 @@ function build(view, render, nav) {
  * součet proti vlastnímu klouzavému průměru — žádná pevná hranice tu
  * neplatí univerzálně.
  */
-function wellnessCard(a, render) {
+function wellnessCard(a, render, nav) {
   const today = S.iso(new Date());
   const history = S.athleteWellness(a.id);
   const todayEntry = history.find((w) => w.date === today) ?? {};
@@ -158,22 +199,42 @@ function wellnessCard(a, render) {
     render();
   };
 
-  return card('Jak se dnes cítíš', { eyebrow: 'Hooperův dotazník — spánek, stres, únava, bolestivost' },
-    h('div.form-row',
-      ...WELLNESS_ITEMS.map((item) => field(item.label,
-        select([{ value: 0, label: '—' }, ...[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: String(n) }))], {
-          value: todayEntry[item.key] || 0,
-          onchange: (e) => save({ [item.key]: Number(e.target.value) }),
-        }),
-        item.hint))),
+  return card('Jak se dnes cítíš', {
+    eyebrow: 'Hooperův dotazník · 1 = nejlíp, 7 = nejhůř',
+    action: h('button.btn.btn-sm.btn-ghost', {
+      title: 'Co Hooperův index znamená a odkud se bere',
+      onclick: () => nav('slovnik'),
+    }, icon('info', 14), 'Co to je'),
+  },
+    h('div.scales',
+      ...WELLNESS_ITEMS.map((item) => h('div.scale-row',
+        h('span.scale-label', item.label),
+        scale(todayEntry[item.key] || 0, (n) => save({ [item.key]: n }), item.label)))),
+
     todayIndex != null
-      ? h('div', { style: { marginTop: '14px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' } },
+      ? h('div.scale-out',
           stat('Dnešní index', todayIndex, 'ze 4–28'),
           baseline != null && stat('Vlastní průměr', fixed(baseline, 1), `posledních ${Math.min(history.filter((w) => w.date < today).length, 7)} dnů`),
           tag(g.label, g.tone))
-      : h('p.note', { style: { marginTop: '14px' } }, 'Vyplň všechny čtyři položky, ať appka spočítá dnešní index.'),
-    h('p.note', { style: { marginTop: '14px' } },
-      'Hooper a Mackinnon (1995) tohle ověřili u plavců proti fyziologickým markerům přetrénování (76 % rozptylu). Na rozdíl od RPE nezachytí jen trénink — i to, co se do posilovny přineslo zvenku. Appka ho čte proti tvému vlastnímu průměru, ne proti univerzální hranici — ta neexistuje.'));
+      : h('p.note', 'Vyplň všechny čtyři, ať appka spočítá dnešní index.'));
+}
+
+/**
+ * Škála 1–7 jako sedm tlačítek.
+ *
+ * Bývalo to rozbalovací pole: otevřít, sjet, vybrat, a to čtyřikrát.
+ * Denní zápis, který zabere šestnáct kliknutí, se prostě nedělá —
+ * a bez něj appka nemá z čeho počítat připravenost.
+ */
+function scale(value, onpick, label) {
+  return h('div.scale', { role: 'radiogroup', 'aria-label': label },
+    ...[1, 2, 3, 4, 5, 6, 7].map((n) => h('button.scale-dot', {
+      type: 'button',
+      role: 'radio',
+      'aria-checked': String(n === value),
+      'aria-label': `${label}: ${n} ze 7`,
+      onclick: () => onpick(n),
+    }, n)));
 }
 
 /** Nejtěžší série z nejbližší budoucí (nebo poslední) jednotky. */

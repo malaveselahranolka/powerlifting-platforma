@@ -2,193 +2,219 @@
    PLATFORMA — trenérský nástroj pro powerlifting
    Designový systém.
 
-   Dvě pravidla, ze kterých plyne zbytek:
+   Čtyři pravidla, ze kterých plyne zbytek:
 
-   1. Povrchy jsou neutrální a ploché. Jediná sytá barva na obrazovce
-      patří datům nebo jedné akci — ne pozadí. Nástroj, ve kterém se
-      čtou čísla osm hodin týdně, nesmí sám o sobě křičet.
+   1. Tma je výchozí. Nástroj se otevírá v posilovně, ráno před prací
+      a večer po ní — svítivě bílá plocha je v těch situacích agrese.
+      Světlý motiv zůstává plnohodnotný, jen není první.
 
-   2. Barva v grafu nese úlohu, ne dekoraci. Cviky jsou kategorie
-      (tři odlišné odstíny + neutrál pro doplňky), intenzitní zóny jsou
-      pořadí (jeden odstín, světlý → tmavý). Kotoučové barvy zůstaly
-      tam, kde skutečně znamenají kotouč — na vykreslené ose a ve skladu.
+   2. Číslo je hrdina. Váhy, procenta a maxima jsou důvod, proč appka
+      existuje, takže mají vlastní písmo (Archivo v rozšířeném řezu),
+      vlastní velikost a nikdy se neschovají do odstavce.
+
+   3. Barva v grafu nese úlohu, ne dekoraci. Odstíny cviků jsou vzaté
+      z barev kotoučů podle IPF — modrá dvacítka, žlutá patnáctka,
+      zelená desítka. Trenér ty barvy zná z nakládání osy, tady znamenají
+      totéž. Červená je vyhrazená rozhraní a verdiktu, proto v řadách není.
+
+   4. Sytá barva je vzácná. Na obrazovce plné čísel je červená akcent
+      jedné akce nebo jednoho varování. Když je červené všechno,
+      neznamená nic.
    ========================================================= */
 
 /* ---------------------------------------------------------
-   Světlý motiv je výchozí; tmavý se bere z nastavení systému
+   Písma. Hostují se z repozitáře, ne z CDN — appka slibuje, že data
+   nikam neposílá, a stahovat kvůli fontu soubor z cizí domény by ten
+   slib nalomilo. Podmnožina latin-ext je kvůli české diakritice povinná.
+   --------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 125%;
+  font-display: swap;
+  src: url('../fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 125%;
+  font-display: swap;
+  src: url('../fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Plex Sans';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('../fonts/plex-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Plex Sans';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('../fonts/plex-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/plex-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/plex-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------------------------------------------------------
+   Tmavý motiv je výchozí; světlý se bere z nastavení systému
    a přebíjí ho přepínač (data-theme na <html>).
    --------------------------------------------------------- */
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* povrchy */
-  --bg: #f4f5f6;
-  --bg-deep: #e9ebed;
-  --surface: #ffffff;
-  --surface-2: #f4f5f6;
-  --surface-3: #e7e9ec;
-  --line: #dfe2e6;
-  --line-soft: #eaecef;
+  /* povrchy — chladný grafit, ne černá. Litina a guma na podlaze,
+     ne prázdno; proto má tma modrý nádech a povrchy se od sebe liší
+     odstínem, ne jen jasem. */
+  --bg: #0b0e11;
+  --bg-deep: #06080a;
+  --surface: #12161a;
+  --surface-2: #171c21;
+  --surface-3: #212830;
+  --line: #242b34;
+  --line-soft: #1a1f25;
 
   /* text */
-  --ink: #14161a;
-  --ink-2: #565c66;
-  --ink-3: #838a95;
+  --ink: #eef2f6;
+  --ink-2: #9caab7;
+  --ink-3: #7b8794;
 
   /* akcent — jediná sytá barva rozhraní */
-  --accent: #c31f2a;
-  --accent-hover: #a91a24;
+  --accent: #e11d2b;
+  --accent-hover: #f5323f;
   --accent-ink: #ffffff;
-  --accent-soft: #fdeaeb;
-  --accent-line: #f2c4c7;
-  --accent-text: #a91a24;
+  --accent-soft: #241013;
+  --accent-line: #4a1b21;
+  --accent-text: #ff7b82;
 
   /* stavy */
-  --ok: #0f8a45;
-  --warn: #b07407;
-  --bad: #c8382f;
-  --info: #2a78d6;
-  --ok-soft: #e8f5ed;
-  --warn-soft: #fdf3e0;
-  --bad-soft: #fdecea;
-  --info-soft: #e9f1fc;
+  --ok: #2fbf74;
+  --warn: #eda32a;
+  --bad: #ff6b6b;
+  --info: #5aa2f5;
+  --ok-soft: #0f2318;
+  --warn-soft: #261d0e;
+  --bad-soft: #2a1315;
+  --info-soft: #101d2c;
 
-  /* řady grafů — kategorie (ověřeno validátorem na bílém povrchu) */
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-other: #9aa2ad;
+  /* řady grafů — kategorie. Odstíny sedí na barvy kotoučů podle IPF:
+     modrá dvacítka, žlutá patnáctka, zelená desítka. Doplňky jsou ocel,
+     protože to není hlavní cvik. Červená (pětadvacítka) tady chybí
+     schválně — patří akcentu a varování. */
+  --series-1: #4d94ff;
+  --series-2: #f2b53d;
+  --series-3: #23b877;
+  --series-other: #7c8794;
 
-  /* intenzitní zóny — pořadí, jeden odstín světlý → tmavý */
-  --zone-1: #a99cec;
-  --zone-2: #8574de;
-  --zone-3: #6250c4;
-  --zone-4: #42349a;
+  /* intenzitní zóny — pořadí, ne kategorie: jeden odstín od studeného
+     k horkému. Těžší série je doslova žhavější buňka. */
+  --zone-1: #3d181c;
+  --zone-2: #7a2029;
+  --zone-3: #bf2b36;
+  --zone-4: #f2545e;
   /* text na vyplněné buňce — světlé kroky nesou tmavý inkoust a naopak */
-  --zone-1-ink: #1e1740;
+  --zone-1-ink: #e8b8bc;
   --zone-2-ink: #ffffff;
+  --zone-3-ink: #ffffff;
+  --zone-4-ink: #26090c;
+
+  /* chrom grafu */
+  --grid: #1e242b;
+  --axis: #2f3841;
+  --steel: #7c8794;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --shadow-2: 0 4px 8px -2px rgba(0, 0, 0, .55), 0 18px 36px -12px rgba(0, 0, 0, .7);
+  --overlay: rgba(3, 5, 7, .68);
+}
+
+/* Světlý motiv se nasadí jen ručním přepnutím, ne podle systému.
+   Tmavý motiv není režim, je to podoba téhle appky — a přepínač
+   v liště je na očích, takže kdo chce světlo, dostane ho na jedno
+   kliknutí a volba mu zůstane uložená. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #eff1f3;
+  --bg-deep: #e2e5e9;
+  --surface: #ffffff;
+  --surface-2: #f4f6f8;
+  --surface-3: #e5e9ed;
+  --line: #d9dee4;
+  --line-soft: #e8ecf0;
+
+  --ink: #101418;
+  --ink-2: #515b66;
+  /* o odstín tmavší, než by se chtělo: nadtitulky a poznámky pod poli
+     jsou drobné písmo a na bílé musí projít 4,5:1, ne 4,2:1 */
+  --ink-3: #606b77;
+
+  --accent: #c5121f;
+  --accent-hover: #a70e19;
+  --accent-ink: #ffffff;
+  --accent-soft: #fdeaeb;
+  --accent-line: #f2c2c5;
+  --accent-text: #ab0e19;
+
+  --ok: #0b7a41;
+  --warn: #9a6206;
+  --bad: #c02a2a;
+  --info: #1e63b8;
+  --ok-soft: #e6f4ec;
+  --warn-soft: #fcf2df;
+  --bad-soft: #fdeaea;
+  --info-soft: #e8f0fb;
+
+  --series-1: #1f5fd0;
+  --series-2: #b57c07;
+  --series-3: #0e8a55;
+  --series-other: #78838f;
+
+  --zone-1: #fbdfe1;
+  --zone-2: #f0989f;
+  --zone-3: #d2333f;
+  --zone-4: #96101c;
+  --zone-1-ink: #4a0f15;
+  --zone-2-ink: #3d0b11;
   --zone-3-ink: #ffffff;
   --zone-4-ink: #ffffff;
 
-  /* chrom grafu */
-  --grid: #e7e9ec;
-  --axis: #cfd4da;
-  --steel: #9aa2ad;
+  --grid: #e6eaee;
+  --axis: #c8ced5;
+  --steel: #78838f;
 
-  --shadow-1: 0 1px 2px rgba(20, 22, 26, .05);
-  --shadow-2: 0 4px 6px -2px rgba(20, 22, 26, .06), 0 12px 28px -8px rgba(20, 22, 26, .14);
-  --overlay: rgba(20, 22, 26, .38);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    color-scheme: dark;
-
-    --bg: #0d0e10;
-    --bg-deep: #08090a;
-    --surface: #141517;
-    --surface-2: #1a1c1f;
-    --surface-3: #24272b;
-    --line: #26292e;
-    --line-soft: #1e2124;
-
-    --ink: #eef0f2;
-    --ink-2: #a2a9b3;
-    --ink-3: #737b86;
-
-    --accent: #e03e46;
-    --accent-hover: #ec545c;
-    --accent-ink: #ffffff;
-    --accent-soft: #2a1416;
-    --accent-line: #4d2126;
-    --accent-text: #f2757c;
-
-    --ok: #35b46a;
-    --warn: #e0a52c;
-    --bad: #ef5a55;
-    --info: #4b93e8;
-    --ok-soft: #12241a;
-    --warn-soft: #2a2113;
-    --bad-soft: #2b1615;
-    --info-soft: #131e2c;
-
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-other: #6e767f;
-
-    --zone-1: #4d4192;
-    --zone-2: #6656bd;
-    --zone-3: #8676dc;
-    --zone-4: #a99ef2;
-    --zone-1-ink: #ffffff;
-    --zone-2-ink: #ffffff;
-    --zone-3-ink: #16112e;
-    --zone-4-ink: #16112e;
-
-    --grid: #232629;
-    --axis: #33373c;
-    --steel: #6e767f;
-
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
-    --shadow-2: 0 4px 8px -2px rgba(0, 0, 0, .5), 0 16px 32px -10px rgba(0, 0, 0, .6);
-    --overlay: rgba(4, 5, 6, .62);
-  }
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --bg: #0d0e10;
-  --bg-deep: #08090a;
-  --surface: #141517;
-  --surface-2: #1a1c1f;
-  --surface-3: #24272b;
-  --line: #26292e;
-  --line-soft: #1e2124;
-
-  --ink: #eef0f2;
-  --ink-2: #a2a9b3;
-  --ink-3: #737b86;
-
-  --accent: #e03e46;
-  --accent-hover: #ec545c;
-  --accent-ink: #ffffff;
-  --accent-soft: #2a1416;
-  --accent-line: #4d2126;
-  --accent-text: #f2757c;
-
-  --ok: #35b46a;
-  --warn: #e0a52c;
-  --bad: #ef5a55;
-  --info: #4b93e8;
-  --ok-soft: #12241a;
-  --warn-soft: #2a2113;
-  --bad-soft: #2b1615;
-  --info-soft: #131e2c;
-
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-other: #6e767f;
-
-  --zone-1: #4d4192;
-  --zone-2: #6656bd;
-  --zone-3: #8676dc;
-  --zone-4: #a99ef2;
-  --zone-1-ink: #ffffff;
-  --zone-2-ink: #ffffff;
-  --zone-3-ink: #16112e;
-  --zone-4-ink: #16112e;
-
-  --grid: #232629;
-  --axis: #33373c;
-  --steel: #6e767f;
-
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
-  --shadow-2: 0 4px 8px -2px rgba(0, 0, 0, .5), 0 16px 32px -10px rgba(0, 0, 0, .6);
-  --overlay: rgba(4, 5, 6, .62);
+  --shadow-1: 0 1px 2px rgba(16, 20, 24, .06);
+  --shadow-2: 0 4px 6px -2px rgba(16, 20, 24, .07), 0 14px 30px -10px rgba(16, 20, 24, .16);
+  --overlay: rgba(16, 20, 24, .4);
 }
 
 /* ---------------------------------------------------------
@@ -196,21 +222,24 @@
    --------------------------------------------------------- */
 
 :root {
-  /* Systémové písmo — načte se okamžitě, funguje bez sítě.
-     Appka běží offline z localStorage; stahovat kvůli ní font z CDN
-     by znamenalo, že v posilovně bez signálu vypadá rozbitě. */
-  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: var(--font-body);
-  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  /* Tři role, tři písma. Archivo má osu šířky — velká čísla jdou
+     do rozšířeného řezu, aby vypadala jako na výsledkové tabuli,
+     běžné nadpisy zůstávají v normální šířce. Plex Sans je text,
+     Plex Mono sloupce čísel, kde musí být číslice pod sebou. */
+  --font-display: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
   --s5: 20px; --s6: 28px; --s7: 40px; --s8: 56px;
 
-  --r-sm: 6px; --r: 8px; --r-lg: 12px;
+  --r-sm: 4px; --r: 6px; --r-lg: 10px;
 
-  --rail: 232px;
-  --topbar-h: 57px;
+  --rail: 236px;
+  --topbar-h: 60px;
   --ease: cubic-bezier(.2, .7, .3, 1);
+  /* pružina pro věci, které vyjíždějí — panel nástrojů, spodní lišta */
+  --ease-spring: cubic-bezier(.16, 1, .3, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -232,14 +261,18 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Nadpisy jdou do rozšířené šířky Archiva. Je to jemné — 106 % místo
+   100 % —, ale stačí to na to, aby se titulek nedal splést s textem. */
 h1, h2, h3, h4 {
   font-family: var(--font-display);
+  font-stretch: 106%;
   font-weight: 600;
-  letter-spacing: -.011em;
-  line-height: 1.25;
+  letter-spacing: -.014em;
+  line-height: 1.22;
   margin: 0;
   text-wrap: balance;
 }
+
 
 a { color: var(--accent-text); text-underline-offset: 2px; }
 
@@ -312,16 +345,18 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 .brand-name {
   font-family: var(--font-display);
   font-weight: 650;
-  font-size: 14.5px;
-  letter-spacing: -.005em;
-  line-height: 1.2;
+  font-stretch: 118%;
+  font-size: 15px;
+  letter-spacing: .01em;
+  line-height: 1.15;
+  text-transform: uppercase;
 }
 
 .brand-sub {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--ink-3);
   line-height: 1.2;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .nav {
@@ -365,13 +400,31 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 .nav-item:hover { color: var(--ink); background: var(--surface-2); }
 .nav-item:hover .ic { color: var(--ink-2); }
 
+.nav-item {
+  position: relative;
+}
+
 .nav-item[aria-current='page'] {
   color: var(--ink);
   background: var(--surface-3);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .nav-item[aria-current='page'] .ic { color: var(--accent-text); }
+
+/* Aktivní sekci drží proužek u kraje, ne jen odstín pozadí. V šeru
+   posilovny je rozdíl dvou tmavých šedých k nerozeznání. */
+.nav-item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
 
 .rail-foot {
   display: flex;
@@ -408,20 +461,11 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
   border-bottom: 1px solid var(--line);
 }
 
-.topbar-title { flex: 1; min-width: 0; }
+.shell { min-width: 0; display: flex; flex-direction: column; }
 
-.topbar-title h1 { font-size: 17px; font-weight: 650; }
+.topbar-tools { display: flex; align-items: center; gap: var(--s2); flex: none; margin-left: auto; }
 
-.topbar-title p {
-  margin: 1px 0 0;
-  font-size: 12.5px;
-  color: var(--ink-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topbar-tools { display: flex; align-items: center; gap: var(--s2); flex: none; }
+.btn-tools { gap: 7px; }
 
 .main { padding: var(--s5) var(--s6) var(--s8); }
 
@@ -512,10 +556,11 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 
 .stat-value {
   font-family: var(--font-display);
+  font-stretch: 112%;
   font-weight: 620;
-  font-size: 24px;
-  letter-spacing: -.022em;
-  line-height: 1.15;
+  font-size: 25px;
+  letter-spacing: -.025em;
+  line-height: 1.12;
   font-variant-numeric: tabular-nums;
   margin-top: 1px;
 }
@@ -813,10 +858,11 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 
 .readout-num {
   font-family: var(--font-display);
-  font-weight: 640;
-  font-size: clamp(40px, 4.6vw, 60px);
-  letter-spacing: -.035em;
-  line-height: 1;
+  font-stretch: 120%;
+  font-weight: 660;
+  font-size: clamp(46px, 5.4vw, 74px);
+  letter-spacing: -.038em;
+  line-height: .95;
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: baseline;
@@ -1317,10 +1363,13 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 
 .daypick-btn:hover { color: var(--ink); border-color: var(--axis); }
 
+/* Vybraný den je volba, ne akce ani poplach — proto plný inkoust,
+   ne červená. Sytou barvu si drží tlačítka, která něco provedou. */
 .daypick-btn[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
 }
 
 .day-block { display: flex; flex-direction: column; gap: 6px; }
@@ -1445,10 +1494,13 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
    Doporučení
    ========================================================= */
 
+/* Naléhavost nese ikona a hlavně nadpis skupiny („Jednej teď").
+   Barevný pruh u okraje by řekl potřetí totéž — a v seznamu osmi karet
+   z toho byl žebřík proužků, ve kterém se ztratil obsah. Zbylo tónované
+   pozadí u dvou stavů, které skutečně chtějí zásah. */
 .advice {
   padding: var(--s3) var(--s4);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--ink-3);
   border-radius: var(--r);
   background: var(--surface-2);
   display: flex;
@@ -1456,10 +1508,8 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
   gap: 6px;
 }
 
-.advice[data-tone='bad'] { border-left-color: var(--bad); }
-.advice[data-tone='warn'] { border-left-color: var(--warn); }
-.advice[data-tone='ok'] { border-left-color: var(--ok); }
-.advice[data-tone='low'] { border-left-color: var(--info); }
+.advice[data-tone='bad'] { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 32%, var(--line)); }
+.advice[data-tone='warn'] { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 28%, var(--line)); }
 
 .advice-head { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .advice-head .ic { flex: none; color: var(--ink-3); }
@@ -1490,7 +1540,23 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 
 .advice-do b { font-weight: 600; }
 
-@media (max-width: 860px) {
+/* Další cvik se stejným závěrem. Odsazený řádek, ne další karta —
+   je to varianta téhož, ne nová informace. */
+.advice-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--s2);
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.advice-more b { font-weight: 600; flex: none; }
+.advice-more span { color: var(--ink-2); flex: 1; min-width: 200px; }
+
+@media (max-width: 900px) {
   .advice-foot .btn { width: 100%; }
 }
 
@@ -1826,7 +1892,7 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
   padding: 10px var(--s3);
   background: var(--surface-2);
   border-radius: var(--r-sm);
-  border-left: 2px solid var(--accent);
+  border: 1px solid var(--line-soft);
 }
 
 .gloss-formula code {
@@ -1894,51 +1960,362 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 }
 
 /* =========================================================
+   Triáž na Přehledu
+
+   Buď hoří jedna konkrétní věc, nebo nehoří nic. Klidný stav je jeden
+   řádek, ne karta — nemá si brát pozornost, kterou nepotřebuje.
+   ========================================================= */
+
+.stack { display: flex; flex-direction: column; gap: var(--s3); }
+
+.triage[data-tone='hot'] {
+  border-color: var(--accent-line);
+  background: linear-gradient(180deg, var(--accent-soft), var(--surface) 62%);
+}
+
+.triage[data-tone='hot'] .card-head { padding-bottom: var(--s2); }
+.triage[data-tone='hot'] .ic { color: var(--accent-text); flex: none; margin-top: 2px; }
+
+.triage-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.triage-row:first-child { border-top: 0; padding-top: 0; }
+
+.triage-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.triage-row-text b { font-size: 13.5px; }
+.triage-row-text span { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.triage-row .btn { flex: none; }
+
+.triage-body {
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--s3) !important;
+  padding: var(--s4) var(--s5) !important;
+}
+
+.triage-body > .ic { color: var(--ok); flex: none; }
+.triage-text { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-2); }
+.triage-text b { color: var(--ink); }
+
+/* =========================================================
+   Škála 1–7
+
+   Sedm tlačítek vedle sebe. Vejde se do postranního sloupce i na
+   mobil na šířku palce, a zápis je jedno klepnutí místo tří.
+   ========================================================= */
+
+.scales { display: flex; flex-direction: column; gap: var(--s3); }
+
+.scale-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.scale-label { font-size: 12.5px; color: var(--ink-2); }
+
+.scale {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+
+.scale-dot {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color .12s var(--ease), background-color .12s var(--ease), border-color .12s var(--ease);
+}
+
+.scale-dot:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* Vybraný stupeň je plný neutrální inkoust, ne červená. Čtyřka na
+   škále spánku není poplach — červená v téhle appce znamená „udělej
+   s tím něco", a to by tady lhala. */
+.scale-dot[aria-checked='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.scale-out { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+
+/* =========================================================
+   Hlavička obsahu a záložky uvnitř sekce
+
+   Jméno obrazovky patří k obsahu, ne do horní lišty. Lišta drží věci,
+   které platí všude (kdo, v jakých jednotkách), a zůstává přilepená —
+   nadpis se odroluje, protože při čtení tabulky už není potřeba.
+   ========================================================= */
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-bottom: var(--s5);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line);
+}
+
+.page-head-text { min-width: 0; max-width: 62ch; }
+
+.page-head h1 {
+  font-size: clamp(24px, 3vw, 32px);
+  font-stretch: 112%;
+  font-weight: 660;
+  letter-spacing: -.025em;
+}
+
+.page-head p {
+  margin: 5px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  padding: 3px;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  flex: none;
+  padding: 6px var(--s3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .14s var(--ease), background-color .14s var(--ease);
+}
+
+.tab:hover { color: var(--ink); }
+
+.tab[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+}
+
+/* =========================================================
+   Spodní lišta na mobilu — na širokých obrazovkách neexistuje
+   ========================================================= */
+
+.tabbar { display: none; }
+
+/* =========================================================
+   Panel nástrojů
+
+   Kalkulačka není obrazovka. Vyjede přes obsah, spočítá jedno číslo
+   a zmizí — trenér zůstane tam, kde byl. Uvnitř panelu se všechny
+   mřížky srovnají do jednoho sloupce, protože pohledy jsou psané
+   na šířku stránky, ne na šířku panelu.
+   ========================================================= */
+
+body.is-locked { overflow: hidden; }
+
+.tool-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  background: var(--overlay);
+  opacity: 0;
+  transition: opacity .22s var(--ease);
+}
+
+.tool-scrim.is-on { opacity: 1; }
+
+.tool-panel {
+  width: min(760px, 100%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-2);
+  transform: translateX(24px);
+  transition: transform .32s var(--ease-spring);
+}
+
+.tool-scrim.is-on .tool-panel { transform: none; }
+
+.tool-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s5) var(--s5) var(--s4);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tool-head-text { min-width: 0; }
+.tool-head h2 { font-size: 21px; font-stretch: 110%; margin-top: 1px; }
+.tool-head p { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+
+.tool-tabs {
+  display: flex;
+  gap: var(--s1);
+  padding: var(--s3) var(--s5);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.tool-tabs::-webkit-scrollbar { display: none; }
+
+.tool-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .14s var(--ease), background-color .14s var(--ease), border-color .14s var(--ease);
+}
+
+.tool-tab .ic { color: var(--ink-3); transition: color .14s var(--ease); }
+.tool-tab:hover { color: var(--ink); background: var(--surface-2); }
+
+.tool-tab[aria-selected='true'] {
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  font-weight: 600;
+}
+
+.tool-tab[aria-selected='true'] .ic { color: var(--accent-text); }
+
+.tool-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s5);
+}
+
+.tool-body .g2, .tool-body .g3, .tool-body .g4,
+.tool-body .g-side, .tool-body .g-side-l { grid-template-columns: minmax(0, 1fr); }
+
+/* =========================================================
    Responzivita
    ========================================================= */
 
-@media (max-width: 1180px) {
-  :root { --rail: 56px; }
+@media (max-width: 1120px) {
+  :root { --rail: 60px; }
   .brand-text, .nav-item span, .nav-group, .rail-note span { display: none; }
   .rail { padding: var(--s4) var(--s2) var(--s3); align-items: center; }
   .brand { padding: 0; }
   .nav { align-items: stretch; }
-  .nav-item { justify-content: center; padding: 9px 0; }
+  .nav-item { justify-content: center; padding: 10px 0; }
   .rail-note { justify-content: center; padding: 0; }
   .main { padding: var(--s4) var(--s5) var(--s8); }
   .topbar { padding: var(--s3) var(--s5); }
+  .btn-tools span { display: none; }
   .g-side, .g-side-l { grid-template-columns: minmax(0, 1fr); }
   .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  .rail {
+  .rail { display: none; }
+  /* ⌘K bez klávesnice nedává smysl a pět sekcí je vidět dole */
+  .only-search { display: none; }
+
+  /* Pět položek s popiskem. Nic se neroluje, na nic se neklepe naslepo. */
+  .tabbar {
     position: fixed;
     bottom: 0;
-    top: auto;
     left: 0;
     right: 0;
-    height: auto;
     z-index: 30;
-    flex-direction: row;
-    gap: 0;
-    padding: 4px var(--s2) calc(4px + env(safe-area-inset-bottom));
-    border-right: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
+    padding: 6px var(--s2) calc(6px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
-    background: color-mix(in srgb, var(--surface) 94%, transparent);
-    backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(14px) saturate(1.3);
   }
-  .brand, .rail-foot { display: none; }
-  .nav { flex-direction: row; width: 100%; gap: 0; overflow-x: auto; }
-  .nav-item { flex: 1 1 0; min-width: 40px; padding: 9px 2px; }
-  .topbar { padding: var(--s3) var(--s4); flex-wrap: wrap; gap: var(--s2); }
-  .topbar-title { flex: 1 0 100%; }
-  .topbar-title p { display: none; }
-  .topbar-tools { width: 100%; justify-content: space-between; }
+
+  .tabbar .nav-item {
+    flex-direction: column;
+    gap: 3px;
+    min-height: 52px;
+    padding: 6px 2px;
+    justify-content: center;
+    border-radius: var(--r);
+  }
+
+  .tabbar .nav-item span {
+    display: block;
+    font-size: 10.5px;
+    line-height: 1.1;
+    letter-spacing: -.01em;
+  }
+
+  .tabbar .nav-item[aria-current='page'] { background: var(--accent-soft); color: var(--accent-text); }
+  .tabbar .nav-item[aria-current='page'] .ic { color: var(--accent-text); }
+  /* proužek u kraje patří svislé liště, ve vodorovné by visel z boku */
+  .tabbar .nav-item[aria-current='page']::before { display: none; }
+
+  .topbar { padding: var(--s2) var(--s4); gap: var(--s2); }
+  .topbar-tools { gap: var(--s1); margin-left: auto; }
   .athlete-pick { flex: 1; min-width: 0; }
   .athlete-pick .select { width: 100%; }
-  .main { padding: var(--s4) var(--s4) 84px; }
+  .main { padding: var(--s4) var(--s4) 92px; }
+
+  .page-head { margin-bottom: var(--s4); gap: var(--s3); }
+  .page-head-text { flex: 1 0 100%; }
+  .tabs { width: 100%; }
+  .tab { flex: 1 0 auto; text-align: center; }
+
+  .tool-panel { width: 100%; border-left: 0; transform: translateY(32px); }
+  .tool-head, .tool-tabs, .tool-body { padding-left: var(--s4); padding-right: var(--s4); }
+  .tool-body { padding-bottom: calc(var(--s6) + env(safe-area-inset-bottom)); }
+
   .g2, .g3, .g4 { grid-template-columns: minmax(0, 1fr); }
   .readout { grid-template-columns: minmax(0, 1fr); }
   .week-bar { flex-direction: column; align-items: stretch; gap: var(--s2); }

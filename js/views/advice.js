@@ -38,22 +38,23 @@ export function adviceView(nav) {
   return root;
 }
 
-function build(root, render, nav) {
-  const a = S.athlete();
-  if (!a) {
-    root.append(empty('Nejdřív si založ svěřence.', h('button.btn.btn-primary', { onclick: () => nav('athletes') }, 'Přidat svěřence')));
-    return;
-  }
-
+/**
+ * Seřazený seznam doporučení pro jednoho svěřence.
+ *
+ * Vytažené ven, protože Přehled ukazuje to nejnaléhavější z něj hned
+ * nahoře. Kdyby si tam počítal vlastní seznam, mohly by se ty dvě
+ * obrazovky rozejít a trenér by na každé viděl jinou pravdu.
+ */
+export function adviceFor(a) {
+  if (!a) return [];
   const block = S.block();
-  const entries = S.allEntries(a.id);
   const e1rmLog = (S.state.e1rmLog ?? []).filter((x) => x.athleteId === a.id);
 
-  const all = [
+  return [
     ...C.recommendations({
       athlete: a,
       block,
-      entries,
+      entries: S.allEntries(a.id),
       e1rms: S.blockE1rm(block, a),
       meets: S.athleteMeets(a.id),
       e1rmLog,
@@ -62,6 +63,17 @@ function build(root, render, nav) {
     }),
     ...C.trendRecommendations(e1rmLog),
   ].sort((x, y) => x.priority - y.priority);
+}
+
+function build(root, render, nav) {
+  const a = S.athlete();
+  if (!a) {
+    root.append(empty('Nejdřív si založ svěřence.', h('button.btn.btn-primary', { onclick: () => nav('athletes') }, 'Přidat svěřence')));
+    return;
+  }
+
+  const block = S.block();
+  const all = adviceFor(a);
 
   const shown = st.filter === 'all' ? all : all.filter((r) => r.weight === st.filter);
   const counts = { studie: 0, praxe: 0, appka: 0 };
@@ -100,7 +112,7 @@ function build(root, render, nav) {
     if (!group.length) continue;
     root.append(card(PRIORITY[p].label, { eyebrow: PRIORITY[p].note },
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-        ...group.map((r) => adviceRow(r, nav)))));
+        ...cluster(group).map((g) => adviceCard(g, nav)))));
   }
 
   if (all.length && !shown.length) {
@@ -109,14 +121,44 @@ function build(root, render, nav) {
   }
 }
 
-function adviceRow(r, nav) {
+/**
+ * Doporučení se stejným závěrem slije do jednoho.
+ *
+ * Dřep, benčpres i mrtvý tah často vyjdou na totéž — „ubrat kolem pěti
+ * procent". Jako tři samostatné karty to byl třikrát stejný odstavec
+ * a třikrát stejné tlačítko; oko to přeskočilo celé. Slévá se jen podle
+ * shodné akce, takže se nikdy nespojí dvě rady, které říkají něco jiného.
+ */
+function cluster(list) {
+  const groups = [];
+  const byKey = new Map();
+  for (const r of list) {
+    const key = `${r.weight}|${r.tone}|${r.screen ?? ''}|${r.action}`;
+    const existing = byKey.get(key);
+    if (existing) { existing.push(r); continue; }
+    const group = [r];
+    byKey.set(key, group);
+    groups.push(group);
+  }
+  return groups;
+}
+
+function adviceCard(group, nav) {
+  const r = group[0];
   const w = WEIGHT[r.weight];
+  const mark = r.tone === 'bad' || r.tone === 'warn' ? 'alert' : r.tone === 'ok' ? 'check' : 'info';
+
   return h('div.advice', { dataset: { tone: r.tone } },
     h('div.advice-head',
-      icon(r.tone === 'bad' ? 'alert' : r.tone === 'warn' ? 'alert' : r.tone === 'ok' ? 'check' : 'info', 16),
+      icon(mark, 16),
       h('b.advice-title', r.title),
       h('span', { title: w.title }, tag(w.label, w.tone))),
     h('p.advice-why', r.why),
+
+    ...group.slice(1).map((x) => h('div.advice-more',
+      h('b', x.title),
+      h('span', x.why))),
+
     h('div.advice-foot',
       h('p.advice-do', h('b', 'Co s tím: '), r.action),
       r.screen && h('button.btn.btn-sm', { onclick: () => nav(r.screen) }, 'Otevřít', icon('arrow', 13))));

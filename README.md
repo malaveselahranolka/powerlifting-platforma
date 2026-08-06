@@ -45,24 +45,58 @@ frekvence na cvik, rozestupy těžkých expozic a sestavování doporučení.
 
 ## Co to umí
 
-| Obrazovka | K čemu |
+Appka má pět sekcí. Dělí se podle otázky, se kterou k ní trenér přichází, ne
+podle toho, jaký výpočet uvnitř běží.
+
+### Přehled
+
+| Záložka | K čemu |
 |---|---|
-| **Doporučení** | Signály ze všech obrazovek seřazené podle naléhavosti — co se stalo, co s tím, a jak silný je pro to důvod. Nic nepřepisuje |
-| **Přehled** | Součet trojboje, DOTS / IPF GL, tonáž po týdnech, skutečné RPE proti plánu, Hooperův index pohody, detekce plateau na E1RM, plán na tento týden |
+| **Dnes** | Součet trojboje, DOTS / IPF GL, nejnaléhavější doporučení, tonáž po týdnech, plán na tento týden, vývoj maxim, skutečné RPE proti plánu, denní zápis pohody |
+| **Doporučení** | Signály ze všech obrazovek seřazené podle naléhavosti — co se stalo, co s tím, a jak silný je pro to důvod. Rady se stejným závěrem se slévají do jedné. Nic nepřepisuje |
+
+### Trénink
+
+| Záložka | K čemu |
+|---|---|
+| **Kalendář** | Jednotky v čase — měsíční mřížka, přesun tažením, přidávání a mazání cviků, kopírování jednotky, frekvence na cvik a rozestupy těžkých jednotek |
+| **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, vážený odhad maxima ze skutečných sérií, relativní intenzita k dennímu maximu, doporučení podle skutečného výkonu |
+| **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, interval spolehlivosti a robustní odhad trendu, detekce zlomu, poměr podnětu k únavě, rozložení součtu proti elitě |
+
+### Blok
+
+| Záložka | K čemu |
+|---|---|
+| **Analýza** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
+| **Stavba** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek; hotové šablony (5/3/1 s dopočítanými váhami, kostra makrocyklu, popis dalších) |
+| **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
+
+### Závod
+
+| Záložka | K čemu |
+|---|---|
+| **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík, časová osa podle pořadí v nominaci, ladění formy ve třech modelech, kalkulačka shazování váhy, projekce součtu |
+| **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, percentily relativní síly, vliv tělesné váhy na koeficient |
+
+### Svěřenci
+
+| Záložka | K čemu |
+|---|---|
+| **Profily a data** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, přepis koeficientů variant, zálohy |
+
+### Nástroje
+
+Kalkulačky nejsou obrazovky — vyjedou v panelu přes rozdělanou práci, spočítají
+jedno číslo a zavřou se. Otevírá je tlačítko **Nástroje** v horní liště nebo
+`Ctrl/Cmd + K`.
+
+| Nástroj | K čemu |
+|---|---|
 | **E1RM** | Odhad maxima z výkonu (RPE/RTS + 7 vzorců) a zpětně váha na ose pro cílové opakování × RPE |
 | **RPE tabulka** | Celá Tuchschererova tabulka přepočtená na kilogramy, klikací |
 | **Kotouče** | Co reálně naložíš s kotouči, které máš. Sklad po párech, okolní dosažitelné váhy |
 | **APRE** | Autoregulace podle skutečných opakování na testovací sérii — jiný princip než RPE |
-| **Rychlost** | Profil zatížení a rychlosti, odhad maxima z profilu, práh poklesu v sérii a bezpřístrojová obdoba z deníku |
-| **Kalendář** | Jednotky v čase — měsíční mřížka, přesun tažením, přidávání a mazání cviků, kopírování jednotky, frekvence na cvik a rozestupy těžkých jednotek |
-| **Plán vs. realita** | Plánovaná a skutečná váha, opakování i RPE vedle sebe, posun RPE po týdnech, vážený odhad maxima ze skutečných sérií, relativní intenzita k dennímu maximu, doporučení podle skutečného výkonu |
-| **Únava a forma** | Model kondice a únavy, denní připravenost z odchylky RPE, signál stropu regenerace, kdy je zlepšení prokazatelné, interval spolehlivosti a robustní odhad trendu, detekce zlomu, poměr podnětu k únavě, rozložení součtu proti elitě |
-| **Analýza bloku** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
-| **Stavba bloku** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek; hotové šablony (5/3/1 s dopočítanými váhami, kostra makrocyklu, popis dalších) |
-| **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
-| **Závodní den** | Tři pokusy podle strategie, kontrola skoků, rozcvičovací žebřík, časová osa podle pořadí v nominaci, ladění formy ve třech modelech, kalkulačka shazování váhy, projekce součtu |
-| **Skóre** | IPF GL, DOTS, Wilks, věkový koeficient pro masters a dorost, percentily relativní síly, vliv tělesné váhy na koeficient |
-| **Svěřenci** | Zakládání závodníků, profily, historie maxim, vývoj tělesné váhy, přepis koeficientů variant, zálohy |
+| **Rychlost tyče** | Profil zatížení a rychlosti, odhad maxima z profilu, práh poklesu v sérii a bezpřístrojová obdoba z deníku |
 | **Vysvětlivky** | 55 pojmů s vzorcem, pásmy, zdrojem a větou o tom, co s tím jako trenér dělat |
 
 ## Použité vzorce a odkud pocházejí
@@ -190,32 +224,46 @@ záměrně nedostalo, je v [RESEARCH.md](RESEARCH.md).
 
 ## Vzhled
 
-Povrchy jsou neutrální a ploché; jediná sytá barva na obrazovce patří datům
+Výchozí je tmavý motiv. Appka se otevírá v posilovně, ráno před prací a večer
+po ní; svítivě bílá plocha je v těch situacích agrese. Světlý motiv je
+plnohodnotný a přepínač je v horní liště — nastavení systému se záměrně nečte,
+aby appka nevypadala pokaždé jinak, než ji kdo nechal.
+
+Povrchy jsou ploché a chladné; jediná sytá barva na obrazovce patří datům
 nebo jedné akci. Barva v grafu nese úlohu:
 
-- **soutěžní cviky jsou kategorie** — tři odstíny ověřené na odlišitelnost
-  i při barvosleposti (nejhorší pár ΔE 9,2 ve světlém motivu, 9,4 v tmavém);
-  doplňky nejsou čtvrtá rovnocenná kategorie, ale „zbytek", takže jdou do
-  neutrální šedé,
-- **intenzitní zóny jsou pořadí** — jeden odstín ve čtyřech krocích, světlý
-  → tmavý. Duha na uspořádaná data nutí čtenáře luštit legendu,
+- **soutěžní cviky jsou kategorie** — a odstíny jsou vzaté z barev kotoučů
+  podle IPF: modrá dvacítka je dřep, žlutá patnáctka benčpres, zelená desítka
+  mrtvý tah. Trenér ty barvy zná z nakládání osy. Červená pětadvacítka v řadách
+  chybí schválně — patří akcentu a varování. Odlišitelnost při barvosleposti je
+  ověřená simulací (Viénot 1999): nejhorší pár ΔE 27 při deuteranopii a 32 při
+  protanopii; při vzácné tritanopii klesá na 12 mezi dřepem a mrtvým tahem,
+  které se ale liší i jasem,
+- **doplňky nejsou čtvrtá rovnocenná kategorie**, ale „zbytek", takže jdou do
+  neutrální oceli,
+- **intenzitní zóny jsou pořadí** — jeden odstín ve čtyřech krocích od
+  studeného k horkému. Těžší série je doslova žhavější buňka. Duha na
+  uspořádaná data nutí čtenáře luštit legendu,
 - **kotoučové barvy zůstaly tam, kde znamenají kotouč** — na vykreslené ose
-  a ve skladu. Přebarvit je by znamenalo, že obrázek přestane odpovídat
-  železu v regálu.
+  a ve skladu.
 
-Světlý i tmavý motiv jsou navržené zvlášť, ne převrácené. Přepínač v horní
-liště přebíjí nastavení systému. Písmo je systémové — appka běží offline
-z `localStorage` a stahovat kvůli ní font z CDN by znamenalo, že v posilovně
-bez signálu vypadá rozbitě.
+Písma jsou tři a hostují se z repozitáře, ne z CDN: appka slibuje, že data
+nikam neposílá, a stahovat kvůli fontu soubor z cizí domény by ten slib
+nalomilo — a v posilovně bez signálu by vypadala rozbitě. **Archivo** má osu
+šířky, takže velká čísla jdou do rozšířeného řezu a čtou se jako na výsledkové
+tabuli; **IBM Plex Sans** nese text a **IBM Plex Mono** sloupce čísel, kde musí
+být číslice pod sebou.
 
-`Ctrl/Cmd + K` otevře paletu příkazů (obrazovky, svěřenci, nastavení). Každá
-obrazovka jde vytisknout — plán se dá vzít do posilovny na papíře.
+`Ctrl/Cmd + K` otevře paletu příkazů (obrazovky, nástroje, svěřenci,
+nastavení). Každá obrazovka jde vytisknout — plán se dá vzít do posilovny
+na papíře.
 
 ## Struktura
 
 ```
 index.html
 css/app.css            paleta, typografie, komponenty
+fonts/*.woff2          Archivo + IBM Plex Sans/Mono, podmnožiny latin a latin-ext
 js/data.js             tabulky a koeficienty
 js/glossary.js         obsah vysvětlivek
 js/calc.js             matematika (čisté funkce, bez DOM)
