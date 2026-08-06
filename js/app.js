@@ -21,6 +21,7 @@ import { velocityView } from './views/velocity.js';
 import { calendarView } from './views/calendar.js';
 import { adviceView } from './views/advice.js';
 import { volumeView, intensityView, maxView } from './views/graphs.js';
+import { compareView } from './views/compare.js';
 import * as cloud from './cloud.js';
 
 /* =========================================================
@@ -59,6 +60,7 @@ const SECTIONS = [
     id: 'blok', label: 'Blok', ic: 'layers', title: 'Blok',
     tabs: [
       { id: 'analyza', label: 'Analýza', sub: 'Objem, intenzita a charakter jednotlivých týdnů.', view: blockView },
+      { id: 'porovnani', label: 'Porovnání', sub: 'Dva týdny, dvě jednotky nebo dva bloky vedle sebe a rozdíl mezi nimi.', view: compareView },
       { id: 'stavba', label: 'Stavba', sub: 'Vlny, procenta a hotový plán na týdny dopředu.', view: programView },
       { id: 'makro', label: 'Makrocyklus', sub: 'Bloky v čase, odlehčení a závody — sezóna jako celek.', view: macroView },
     ],

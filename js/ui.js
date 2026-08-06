@@ -205,11 +205,18 @@ export function decimalInput({ value, onvalue, ...props } = {}) {
   return el;
 }
 
-export function select(options, props = {}) {
+/**
+ * Rozbalovací seznam.
+ *
+ * Hodnota se nasazuje až po vložení položek. Prohlížeč si u <select>
+ * pamatuje, že mu hodnotu někdo nastavil ručně, a od té chvíle ignoruje
+ * atribut `selected` na položkách — když se tedy hodnota nastavila dřív,
+ * než položky existovaly, zůstal seznam natvrdo na první z nich.
+ */
+export function select(options, { value, ...props } = {}) {
   const sel = h('select.input.select', props);
-  for (const o of options) {
-    sel.append(h('option', { value: o.value, selected: o.value === props.value }, o.label));
-  }
+  for (const o of options) sel.append(h('option', { value: o.value }, o.label));
+  if (value != null) sel.value = String(value);
   return sel;
 }
 

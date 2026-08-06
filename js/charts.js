@@ -8,7 +8,7 @@
 //   · každý graf má vrstvu na najetí myší — u SVG bez ní zůstane přesná hodnota
 //     nedostupná.
 
-import { s, h, num, fixed, shortDate } from './ui.js';
+import { s, h, num, fixed, shortDate, clear } from './ui.js';
 
 const GRID = 'var(--grid)';
 const AXIS = 'var(--axis)';
@@ -135,12 +135,47 @@ function niceStep(span, target = 4) {
  * překrývaly a čtenář by nepoznal, která hodnota je čí — proto tam zůstane
  * jen čára.
  */
+/**
+ * Spojnicový graf.
+ *
+ * Kreslí se až tehdy, když prvek zná svou skutečnou šířku, a v jejích
+ * jednotkách — viewBox se rovná pixelům 1 : 1.
+ *
+ * Dřív měl graf pevný viewBox 620 jednotek roztažený na šířku karty.
+ * Na širokém sloupci se popisky os nafoukly, na mobilu se z desetibodového
+ * písma staly tři body a osa se změnila v šedou kaši. Písmo v SVG se
+ * zmenšuje se soustavou souřadnic; jediný způsob, jak mu udržet velikost,
+ * je kreslit v pixelech. Překreslení hlídá ResizeObserver, ale až od
+ * dvanácti pixelů rozdílu — jinak by se graf překresloval při každém
+ * cuknutí rolovací lišty.
+ */
 export function lineChart(series, opts = {}) {
+  if (series.flatMap((sr) => sr.points).length < 2) return h('div.chart-empty', 'Málo dat na graf.');
+
+  const host = h('div.chart-host');
+  let drawn = 0;
+
+  const paint = (px) => {
+    const w = Math.max(260, Math.round(px || opts.width || 620));
+    if (Math.abs(w - drawn) < 12) return;
+    drawn = w;
+    clear(host);
+    host.append(drawLine(series, { ...opts, width: w }));
+  };
+
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver((entries) => paint(entries[0].contentRect.width)).observe(host);
+  } else {
+    paint(opts.width);
+  }
+  return host;
+}
+
+function drawLine(series, opts) {
   /**
    * bare = jiskřička: bez mřížky, popisků osy y a svislé osy.
-   * V malém grafu na jeden cvik se popisky zmenší pod čitelnost a zbyde
-   * z nich šedá kaše — tvar křivky se ale čte dál. Hodnotu si čtenář
-   * vytáhne zaměřovačem, ten funguje i tady.
+   * V malém grafu na jeden cvik nemá osa co říct — tvar křivky se čte
+   * i bez ní a hodnotu si čtenář vytáhne zaměřovačem.
    */
   const {
     width = 620, height = 190, bare = false,
@@ -148,8 +183,6 @@ export function lineChart(series, opts = {}) {
     yZero = false, fmt = (v) => num(v, 0), xFmt = null, unit = '',
   } = opts;
   const all = series.flatMap((sr) => sr.points);
-  if (all.length < 2) return h('div.chart-empty', 'Málo dat na graf.');
-
   const numeric = all[0].x != null;
   const xOf = (p) => (numeric ? p.x : new Date(p.date).getTime());
   const xs = all.map(xOf);

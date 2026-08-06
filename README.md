@@ -68,6 +68,7 @@ podle toho, jaký výpočet uvnitř běží.
 | Záložka | K čemu |
 |---|---|
 | **Analýza** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
+| **Porovnání** | Dva týdny, dvě jednotky nebo dva bloky vedle sebe. Deset metrik s rozdílem v číslech i jako pruh od středu, tonáž po cvicích, u jednotek navíc cvik po cviku spárovaný podle jména. Nad tím tabulka všech týdnů (jednotek, bloků) najednou, ze které se klepnutím vybírá A a B |
 | **Stavba** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek; hotové šablony (5/3/1 s dopočítanými váhami, kostra makrocyklu, popis dalších) |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
 
@@ -260,7 +261,15 @@ nebo jedné akci. Barva v grafu nese úlohu:
 - **kotoučové barvy zůstaly tam, kde znamenají kotouč** — na vykreslené ose
   a ve skladu,
 - **čárkovaná čára není naměřená** — plán, norma nebo práh. Nikdy zapsaná
-  data. V legendě má proto čárku, ne plný čtvereček.
+  data. V legendě má proto čárku, ne plný čtvereček,
+- **rozdíl v porovnání nemá barvu**, jen směr a velikost. Vyšší tonáž není
+  lepší ani horší; jediná výjimka je odchylka RPE, u které appka i jinde
+  tvrdí, kterým směrem je horší.
+
+Grafy se kreslí v pixelech, ne v pevném viewBoxu roztaženém na šířku karty.
+Písmo v SVG se zmenšuje se soustavou souřadnic, takže popisky os byly na
+mobilu nečitelné a na širokém sloupci naopak nafouklé. Šířku si graf změří
+sám a překreslí se, když se změní.
 
 Písma jsou tři a hostují se z repozitáře, ne z CDN: appka slibuje, že data
 nikam neposílá, a stahovat kvůli fontu soubor z cizí domény by ten slib

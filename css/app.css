@@ -954,6 +954,8 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
    ========================================================= */
 
 .chart-wrap { display: flex; flex-direction: column; gap: 4px; position: relative; }
+/* měřený obal — graf se vykreslí až podle jeho skutečné šířky */
+.chart-host { width: 100%; min-width: 0; }
 .chart { width: 100%; height: auto; overflow: visible; display: block; }
 .chart-empty { padding: var(--s6); text-align: center; color: var(--ink-3); font-size: 12.5px; }
 
@@ -2098,6 +2100,100 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
   border-top: 1px dashed var(--line);
   padding-top: var(--s2);
 }
+
+/* =========================================================
+   Porovnání
+
+   Dvě věci vedle sebe a rozdíl mezi nimi. Rozdíl se čte dvakrát: jako
+   číslo, které se dá odečíst, a jako pruh od středu, ze kterého je vidět
+   velikost bez čtení. Barvu má pruh jen tam, kde směr něco znamená —
+   u tonáže nebo objemu by zelená lhala, protože v tapéru se ubírá záměrně.
+   ========================================================= */
+
+.cmp td:first-child { max-width: 260px; }
+.cmp-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 7px; vertical-align: -1px; }
+.cmp-hint { display: block; font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.cmp-unit { font-size: 10.5px; color: var(--ink-3); margin-left: 4px; }
+
+.cmp-diff {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.cmp-diff[data-tone='bad'] { color: var(--bad); }
+.cmp-diff[data-tone='ok'] { color: var(--ok); }
+
+.cmp-pct { display: block; font-weight: 500; font-size: 10.5px; color: var(--ink-3); margin-top: 1px; }
+
+/* Pruh je široký na celou buňku, střed je nula. */
+.cmp-bar {
+  position: relative;
+  height: 8px;
+  min-width: 80px;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.cmp-bar::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--axis);
+}
+
+.cmp-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: var(--steel);
+}
+
+.cmp-fill[data-dir='up'] { left: 50%; }
+.cmp-fill[data-dir='down'] { right: 50%; }
+.cmp-fill[data-tone='bad'] { background: var(--bad); }
+.cmp-fill[data-tone='ok'] { background: var(--ok); }
+
+/* ---- výběr A / B v přehledové tabulce ---- */
+
+.cmp-all tr[data-role='a'] { background: color-mix(in srgb, var(--info) 9%, transparent); }
+.cmp-all tr[data-role='b'] { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+
+.cmp-pick { white-space: nowrap; width: 1%; }
+
+.cmp-slot {
+  width: 26px;
+  height: 26px;
+  margin-right: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color .12s var(--ease), background-color .12s var(--ease), border-color .12s var(--ease);
+}
+
+.cmp-slot:hover { color: var(--ink); border-color: var(--axis); }
+
+.cmp-slot[aria-pressed='true'] {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* Sloupce druhé jednotky mají vlastní podklad, aby se dvě sady čísel
+   se stejnými hlavičkami nedaly splést. */
+.cmp-detail th:nth-child(n+5):nth-child(-n+7),
+.cmp-detail td:nth-child(n+5):nth-child(-n+7) { background: var(--surface-2); }
 
 /* =========================================================
    Triáž na Přehledu

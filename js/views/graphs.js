@@ -125,21 +125,11 @@ const legend = (series) => h('div.split-legend',
     h('span.split-name', sr.label))));
 
 /**
- * Poměr stran grafu.
- *
- * SVG se roztáhne na šířku karty, takže výška plyne z viewBoxu — bez
- * předvoleb vyjde graf přes celou šířku vysoký přes půl obrazovky
- * a křivka se v něm ztratí.
- *
- * Na úzké obrazovce se viewBox musí zúžit, i když karta je užší: popisky
- * os mají pevnou velikost ve vnitřních jednotkách, takže se zmenšují spolu
- * s grafem. Sloupec 1000 jednotek vykreslený na 330 px udělá z desetibodového
- * písma tři body — šedou kaši, ze které se hodnota nepřečte.
+ * Výška grafu v pixelech. Šířku si graf změří sám, takže tady zbývá jen
+ * rozhodnout, jak vysoký má být — přes celou kartu, nebo v páru vedle sebe.
  */
-const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches;
-
-const WIDE = () => (narrow() ? { width: 360, height: 240 } : { width: 1000, height: 250 });
-const HALF = () => (narrow() ? { width: 360, height: 240 } : { width: 560, height: 200 });
+const WIDE = { height: 260 };
+const HALF = { height: 210 };
 
 /**
  * Graf se společnou obsluhou prázdného stavu.
@@ -147,7 +137,7 @@ const HALF = () => (narrow() ? { width: 360, height: 240 } : { width: 560, heigh
  */
 function chart(series, opts, emptyText) {
   if (!series.length) return h('div.chart-empty', emptyText);
-  return h('div', lineChart(series, { ...WIDE(), ...opts }), legend(series));
+  return h('div', lineChart(series, { ...WIDE, ...opts }), legend(series));
 }
 
 /** Obal každé záložky — svěřenec, blok, lišta voleb, obsah. */
@@ -216,11 +206,11 @@ export function volumeView(nav) {
 
     root.append(h('div.grid.g2',
       card('Tvrdé série po týdnech', { eyebrow: 'Série, které skutečně stály za adaptaci' },
-        chart(hard, { ...HALF(), yZero: true, xFmt: weekLabel, fmt: (v) => num(v, 0) },
+        chart(hard, { ...HALF, yZero: true, xFmt: weekLabel, fmt: (v) => num(v, 0) },
           'Žádná série ve vybraných cvicích nepřekročila práh tvrdé série.')),
 
       card('Počet zvedů po týdnech', { eyebrow: 'Série × opakování, bez ohledu na váhu' },
-        chart(reps, { ...HALF(), yZero: true, xFmt: weekLabel, fmt: (v) => num(v, 0) },
+        chart(reps, { ...HALF, yZero: true, xFmt: weekLabel, fmt: (v) => num(v, 0) },
           'Málo dat na graf.'))));
   });
 }
@@ -264,7 +254,7 @@ function exerciseGrid(entries, start) {
       h('div.mini-sub', `${num((g.tonnage / total) * 100, 1)} % objemu · ${g.weeks} ${g.weeks === 1 ? 'týden' : g.weeks < 5 ? 'týdny' : 'týdnů'}`),
       g.points.length > 1
         ? lineChart([{ color: LIFTS[g.lift].color, label: g.name, points: g.points }], {
-            width: 300, height: 76, bare: true, yZero: true,
+            height: 76, bare: true, yZero: true,
             xFmt: weekLabel, unit: U(), fmt: (v) => bigNum(v),
           })
         : h('div.mini-flat', 'Jen jeden týden — není co kreslit.'))));
@@ -302,11 +292,11 @@ export function intensityView(nav) {
 
     root.append(h('div.grid.g2',
       card('Průměrná intenzita po týdnech', { eyebrow: '% z maxima, vážené počtem opakování' },
-        chart(avgInt, { ...HALF(), xFmt: weekLabel, unit: '%', fmt: (v) => num(v, 0) },
+        chart(avgInt, { ...HALF, xFmt: weekLabel, unit: '%', fmt: (v) => num(v, 0) },
           'Vybrané cviky nemají známé maximum, ze kterého by šla intenzita spočítat.')),
 
       card('Špičková intenzita po týdnech', { eyebrow: 'Nejtěžší série v týdnu' },
-        chart(peakInt, { ...HALF(), xFmt: weekLabel, unit: '%', fmt: (v) => num(v, 0) },
+        chart(peakInt, { ...HALF, xFmt: weekLabel, unit: '%', fmt: (v) => num(v, 0) },
           'Vybrané cviky nemají známé maximum.'))));
 
     /* ---- RPE: skutečnost proti plánu ---- */
@@ -331,7 +321,7 @@ export function intensityView(nav) {
               points: [{ x: Math.min(...xs), value: 0 }, { x: Math.max(...xs), value: 0 }],
             };
             return h('div',
-              lineChart([...drift, zero], { ...WIDE(), xFmt: weekLabel, fmt: (v) => (v > 0 ? `+${num(v, 1)}` : num(v, 1)) }),
+              lineChart([...drift, zero], { ...WIDE, xFmt: weekLabel, fmt: (v) => (v > 0 ? `+${num(v, 1)}` : num(v, 1)) }),
               legend([...drift, zero]),
               h('p.note', 'Když stejný plán jede týden co týden na vyšší RPE, hromadí se únava — i když váhy na papíře sedí. Křivka pod nulou znamená, že plán je moc lehký.'));
           })()
@@ -428,7 +418,7 @@ export function maxView(nav) {
     },
       est.length
         ? h('div',
-            lineChart([...est, ...planLine], { ...WIDE(), xFmt: weekLabel, unit: U(), fmt: (v) => num(v, 0) }),
+            lineChart([...est, ...planLine], { ...WIDE, xFmt: weekLabel, unit: U(), fmt: (v) => num(v, 0) }),
             legend([...est, ...planLine]),
             h('p.note', single
               ? 'Čárkovaná čára je maximum, ze kterého blok počítal váhy. Křivka pod ní znamená, že plán je postavený na čísle, které závodník právě neuzvedne.'
@@ -476,7 +466,7 @@ export function maxView(nav) {
     },
       history.length
         ? h('div',
-            lineChart(history, { ...WIDE(), unit: U(), fmt: (v) => num(v, 0) }),
+            lineChart(history, { ...WIDE, unit: U(), fmt: (v) => num(v, 0) }),
             legend(history))
         : h('div.chart-empty', 'Zapiš aspoň dvě maxima na cvik, ať je co kreslit.')));
   });
