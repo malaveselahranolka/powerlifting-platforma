@@ -290,11 +290,12 @@ function drawLine(series, opts) {
     for (const d of dots) d.setAttribute('opacity', 0);
   });
 
-  const first = series[0].points;
+  // krajní popisky se berou z celého grafu, ne z první řady — u řad, které
+  // nezačínají a nekončí ve stejný den, by první řada mluvila za všechny
   const label = numeric ? (xFmt ?? ((v) => num(v, 0))) : shortDate;
   wrap.append(h('div.chart-x',
-    h('span', label(numeric ? first[0].x : first[0].date)),
-    h('span', label(numeric ? first.at(-1).x : first.at(-1).date))));
+    h('span', label(numeric ? x0 : new Date(x0))),
+    h('span', label(numeric ? x1 : new Date(x1)))));
   return wrap;
 }
 

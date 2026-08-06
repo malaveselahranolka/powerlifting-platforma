@@ -1,9 +1,9 @@
-import { h, card, icon, num, bigNum, tag, select, clear } from '../ui.js';
+import { h, card, icon, num, bigNum, tag, select, clear, shortDate } from '../ui.js';
 import { lineChart, stackedBars } from '../charts.js';
 import * as S from '../store.js';
 import * as C from '../calc.js';
 import { LIFTS, COMP_LIFTS } from '../data.js';
-import { W, U, liftName, empty } from './_util.js';
+import { W, U, liftName, liftDot, empty } from './_util.js';
 
 /**
  * Grafy.
@@ -354,18 +354,36 @@ export function intensityView(nav) {
    ========================================================= */
 
 /**
- * Odhad maxima z každé jednotky, se skutečnými datumy.
+ * Odhad maxima z odvedených sérií — den po dni.
  *
- * Slouží jako podklad pro typickou chybu měření — ta se počítá z rozptylu
- * kolem trendu, takže potřebuje víc než čtyři body a potřebuje je v čase,
- * ne v pořadí týdnů.
+ * Dvě věci, na kterých tenhle výpočet stojí a na kterých se dá pohodlně
+ * pohořet:
+ *
+ * 1. Berou se jen série se zapsaným skutečným RPE. `setE1rm` si totiž
+ *    chybějící skutečnost doplní plánem, takže bez tohohle filtru by graf
+ *    slavnostně vykreslil odhad i za týden, ve kterém nikdo nezvedl nic —
+ *    a tvrdil by o plánu, že je to výkon.
+ *
+ * 2. Skládá se po dnech, ne po týdnech. `sessionE1rm` váží série obráceně
+ *    k jejich rozptylu a je psaná na jednu jednotku; hodit jí do vstupu
+ *    celý týden dá číslo, které neodpovídá ničemu jinému v appce.
+ *
+ * Plán vs. realita počítá totéž a stejně. Když se to rozejde, jeden
+ * z těch dvou grafů lže.
  */
-function sessionEstimates(entries, lift) {
-  const rows = entries.filter((e) => e.lift === lift);
-  return [...new Set(rows.map((e) => e.date))]
-    .sort()
-    .map((date) => ({ date, value: C.sessionE1rm(rows.filter((e) => e.date === date))?.weighted }))
-    .filter((p) => p.value != null);
+function dayEstimates(entries, lift) {
+  const byDate = new Map();
+  for (const e of entries) {
+    if (e.lift !== lift || e.actualRpe == null) continue;
+    if (!byDate.has(e.date)) byDate.set(e.date, []);
+    byDate.get(e.date).push(e);
+  }
+
+  return [...byDate.entries()]
+    .sort((x, y) => x[0].localeCompare(y[0]))
+    .map(([date, list]) => ({ date, value: C.sessionE1rm(list)?.weighted }))
+    .filter((p) => p.value != null)
+    .map((p) => ({ date: p.date, value: S.toDisplay(p.value) }));
 }
 
 /**
@@ -382,12 +400,69 @@ function changeTag(verdict, noise) {
     : tag('Prokazatelný propad', 'bad');
 }
 
+/**
+ * Která maxima appka zná.
+ *
+ * Appka pracuje se třemi různými čísly a všem se dá říkat „maximum".
+ * Nejsou to nesrovnalosti, ale odpovědi na tři různé otázky — jenže
+ * dokud stály každé na jiné obrazovce pod podobným nadpisem, vypadalo
+ * to, že si appka protiřečí. Tady jsou vedle sebe i s tím, odkud jsou
+ * a kde se používají.
+ */
+function whichMax(a, blk, e1rms, entries, lifts) {
+  const rows = lifts.map((k) => {
+    const days = dayEstimates(entries, k);
+    const last = days.at(-1);
+    return {
+      lift: k,
+      profile: a.e1rm?.[k] ?? null,
+      block: e1rms[k] ?? null,
+      real: last?.value ?? null,
+      realDate: last?.date ?? null,
+    };
+  });
+
+  const cell = (v, conv = true) => (v == null ? h('span.faint', '—') : `${num(conv ? S.toDisplay(v) : v, 1)}`);
+
+  return card('Která maxima appka zná', {
+    eyebrow: `Tři různá čísla, tři různé otázky · ${U()}`,
+    class: 'is-flush',
+  },
+    h('div.table-wrap',
+      h('table.table.maxsrc',
+        h('thead', h('tr',
+          h('th', 'Cvik'),
+          h('th.num', 'Na profilu'),
+          h('th.num', 'Blok počítá z'),
+          h('th.num', 'Z odvedených sérií'))),
+        h('tbody', ...rows.map((r) => h('tr',
+          h('td', liftDot(r.lift), LIFTS[r.lift].label),
+          h('td.num', cell(r.profile)),
+          h('td.num', cell(r.block)),
+          h('td.num', cell(r.real),
+            r.realDate && h('span.maxsrc-when', shortDate(r.realDate)))))))),
+
+    h('div.maxsrc-legend',
+      h('div.maxsrc-item',
+        h('b', 'Na profilu'),
+        h('span', 'Číslo, které jsi zapsal ve Svěřencích. Z něj se počítá součet trojboje, DOTS, IPF GL i pokusy na závodní den. Appka ho sama nikdy nepřepíše.')),
+      h('div.maxsrc-item',
+        h('b', 'Blok počítá z'),
+        h('span', `Snímek maxim k datu, kdy blok začal${blk?.name ? ` (${blk.name})` : ''}. Podle něj jsou spočítané váhy ve Stavbě bloku a procenta v Analýze. Zůstává zamrzlé schválně — jinak by starý blok po každém zlepšení zpětně vypadal lehčí, než ve skutečnosti byl.`)),
+      h('div.maxsrc-item',
+        h('b', 'Z odvedených sérií'),
+        h('span', 'Vážený odhad z posledního dne, kdy se zapsalo skutečné RPE. Tohle jediné je výkon, ne papír — a proto se s ostatními dvěma neshoduje. Používá ho graf níž, Doporučení i Plán vs. realita.'))),
+
+    h('p.note.maxsrc-note',
+      'Rozdíl mezi prvním a třetím sloupcem je informace, ne chyba: říká, jestli maximum na papíře pořád platí. Když je odhad z odvedených sérií trvale níž, patří číslo na profilu snížit — appka to za tebe neudělá.'));
+}
+
 export function maxView(nav) {
   return screen(nav, (root, { a, blk, entries, e1rms }) => {
     const start = blk.start;
     const lifts = chosen().filter((k) => k !== 'accessory');
 
-    /* Vážený odhad maxima z odvedených sérií, týden po týdnu. Váží se
+    /* Vážený odhad maxima z odvedených sérií, den po dni. Váží se
        převrácenou rozptylem: série na RPE 9 o třech opakováních říká
        o maximu víc než osmička na deseti. */
     const est = lifts
@@ -395,8 +470,7 @@ export function maxView(nav) {
         lift: k,
         color: LIFTS[k].color,
         label: LIFTS[k].label,
-        points: weekly(entries.filter((e) => e.lift === k), start,
-          (list) => S.toDisplay(C.sessionE1rm(list)?.weighted ?? NaN)),
+        points: dayEstimates(entries, k),
       }))
       .filter((sr) => sr.points.length > 1);
 
@@ -407,38 +481,39 @@ export function maxView(nav) {
       ? [{
           color: 'var(--steel)', label: 'Maximum, ze kterého blok počítá', dash: true, area: false,
           points: [
-            { x: est[0].points[0].x, value: S.toDisplay(e1rms[single]) },
-            { x: est[0].points.at(-1).x, value: S.toDisplay(e1rms[single]) },
+            { date: est[0].points[0].date, value: S.toDisplay(e1rms[single]) },
+            { date: est[0].points.at(-1).date, value: S.toDisplay(e1rms[single]) },
           ],
         }]
       : [];
 
+    /* ---- která maxima appka vlastně zná ---- */
+    root.append(whichMax(a, blk, e1rms, entries, lifts));
+
     root.append(card('Odhad maxima z odvedených sérií', {
-      eyebrow: `Vážený odhad podle skutečného RPE · ${U()}`,
+      eyebrow: `Vážený odhad z každého dne se zápisem · ${U()}`,
     },
       est.length
         ? h('div',
-            lineChart([...est, ...planLine], { ...WIDE, xFmt: weekLabel, unit: U(), fmt: (v) => num(v, 0) }),
+            lineChart([...est, ...planLine], { ...WIDE, unit: U(), fmt: (v) => num(v, 0) }),
             legend([...est, ...planLine]),
             h('p.note', single
               ? 'Čárkovaná čára je maximum, ze kterého blok počítal váhy. Křivka pod ní znamená, že plán je postavený na čísle, které závodník právě neuzvedne.'
-              : 'Vyber jeden cvik, ať se ukáže i maximum, ze kterého blok počítal váhy.'))
+              : 'Vyber jeden cvik, ať se ukáže i maximum, ze kterého blok počítal váhy.'),
+            h('p.note', { style: { color: 'var(--ink-3)' } },
+              'Body jsou jen dny se zapsaným skutečným RPE. Den bez zápisu tu chybí — nakreslit ho z plánu by znamenalo vydávat papír za výkon. Stejná čísla ukazuje i Plán vs. realita.'))
         : h('div.chart-empty', 'Bez zapsaného skutečného RPE se odhad maxima ze sérií nedá spočítat. Doplň ho v Plán vs. realita.')));
 
-    /* ---- posun za blok, se signálem proti šumu ----
-       Rozdíl se bere z týdenních bodů, aby seděl s grafem nad tím.
-       Šum se ale počítá z jednotlivých jednotek: typická chyba odhadu
-       maxima je vlastnost měření, ne týdne, a ze čtyř týdenních čísel
-       ji spolehlivě odhadnout nejde. */
+    /* ---- posun za blok, se signálem proti šumu ---- */
     root.append(card('Posun za blok', {
-      eyebrow: 'První a poslední týden — a jestli je rozdíl prokazatelný',
+      eyebrow: 'První a poslední zápis — a jestli je rozdíl prokazatelný',
     },
       est.length
         ? h('div.grid.g3', ...est.map((sr) => {
             const from = sr.points[0].value;
             const to = sr.points.at(-1).value;
             const delta = to - from;
-            const noise = C.measurementNoise(sessionEstimates(entries, sr.lift));
+            const noise = C.measurementNoise(sr.points);
             const verdict = C.isRealChange(from, to, noise);
             return h('div.stat',
               h('div.stat-label', sr.label),

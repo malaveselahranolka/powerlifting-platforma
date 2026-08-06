@@ -83,7 +83,7 @@ není verdikt. Volba bloku a zapnutých cviků platí napříč záložkami.
 |---|---|
 | **Objem** | Tonáž po týdnech, objem každého cviku zvlášť (doplňky podle vlastního jména, ne jako jedna hromada), tvrdé série a počet zvedů |
 | **Intenzita a RPE** | Průměrná a špičková intenzita po týdnech, odchylka skutečného RPE od plánu proti nulové ose, rozložení intenzit po pětiprocentních pásmech |
-| **Maxima** | Vážený odhad maxima z odvedených sérií týden po týdnu proti maximu, ze kterého blok počítal váhy; posun za blok se signálem proti šumu; zapsaná maxima přes celou historii |
+| **Maxima** | Tabulka „Která maxima appka zná" — profilové, blokové a z odvedených sérií vedle sebe i s tím, odkud jsou; vážený odhad z každého dne se zápisem proti maximu, ze kterého blok počítal váhy; posun za blok se signálem proti šumu; zapsaná maxima přes celou historii |
 
 ### Závod
 
@@ -232,6 +232,25 @@ zápisů by dala nulový rozptyl a appka by pak prohlásila za prokazatelné
 i zlepšení o sto gramů. Hranice 3 % z průměru leží pod spodním okrajem
 publikovaného rozpětí opakovatelnosti odhadu 1RM — appka radši podstřelí, než
 aby prohlásila šum za zlepšení.
+
+## Tři maxima, a proč se neshodují
+
+Appka pracuje se třemi čísly, kterým se dá říkat „maximum". Nejsou to
+nesrovnalosti, ale odpovědi na tři různé otázky:
+
+| Kde | Co to je | Kdo ho používá |
+|---|---|---|
+| **Na profilu** | Ručně zapsané ve Svěřencích. Appka ho sama nikdy nepřepíše | Součet trojboje, DOTS, IPF GL, pokusy na závodní den |
+| **Ze kterého blok počítá** | Snímek maxim k datu, kdy blok začal | Váhy ve Stavbě bloku, procenta v Analýze |
+| **Z odvedených sérií** | Vážený odhad z posledního dne se zapsaným skutečným RPE | Doporučení, Plán vs. realita, Grafy → Maxima |
+
+Rozdíl mezi prvním a třetím je informace, ne chyba: říká, jestli maximum na
+papíře pořád platí. Tabulka se všemi třemi vedle sebe je v **Grafy → Maxima**.
+
+Odhad z odvedených sérií se počítá **jen ze sérií se zapsaným skutečným RPE**
+a skládá se **po dnech**, ne po týdnech — `setE1rm` si chybějící skutečnost
+doplňuje plánem, takže bez toho filtru by graf vykreslil odhad i za týden, ve
+kterém se nezvedlo nic, a vydával by plán za výkon.
 
 Podrobná rešerše, ze které tyhle metody vzešly, včetně toho, co se do appky
 záměrně nedostalo, je v [RESEARCH.md](RESEARCH.md).

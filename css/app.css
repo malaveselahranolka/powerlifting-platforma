@@ -2102,6 +2102,39 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 }
 
 /* =========================================================
+   Která maxima appka zná
+   ========================================================= */
+
+.maxsrc-when { display: block; font-size: 10px; color: var(--ink-3); margin-top: 1px; }
+
+.maxsrc-legend {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s3);
+  padding: var(--s4) var(--s5) 0;
+}
+
+.maxsrc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface-2);
+}
+
+.maxsrc-item b { font-size: 12.5px; }
+.maxsrc-item span { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+
+.maxsrc-note { padding: var(--s4) var(--s5) var(--s5); max-width: 88ch; }
+
+@media (max-width: 900px) {
+  .maxsrc-legend { grid-template-columns: minmax(0, 1fr); padding-left: var(--s4); padding-right: var(--s4); }
+  .maxsrc-note { padding-left: var(--s4); padding-right: var(--s4); }
+}
+
+/* =========================================================
    Porovnání
 
    Dvě věci vedle sebe a rozdíl mezi nimi. Rozdíl se čte dvakrát: jako
