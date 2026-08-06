@@ -45,7 +45,7 @@ frekvence na cvik, rozestupy těžkých expozic a sestavování doporučení.
 
 ## Co to umí
 
-Appka má pět sekcí. Dělí se podle otázky, se kterou k ní trenér přichází, ne
+Appka má šest sekcí. Dělí se podle otázky, se kterou k ní trenér přichází, ne
 podle toho, jaký výpočet uvnitř běží.
 
 ### Přehled
@@ -70,6 +70,19 @@ podle toho, jaký výpočet uvnitř běží.
 | **Analýza** | Tonáž, zvedy, intenzita, Prilepin, tvrdé série, těžké expozice (85/90/95 %), rozložení intenzit po pásmech, index specifičnosti, tempo nárůstu, charakter týdne, plán vs. realita, mapa bloku, CSV |
 | **Stavba** | Matice týden × cvik — série, opakování, RPE a intenzita zvlášť pro každý řádek; hotové šablony (5/3/1 s dopočítanými váhami, kostra makrocyklu, popis dalších) |
 | **Makrocyklus** | Bloky v čase (fáze, objem, taper), odlehčení napříč sezónou, zápasy — součet, skóre, úspěšnost pokusů |
+
+### Grafy
+
+Analýza bloku a Plán vs. realita odpovídají na otázku „je to v pořádku" —
+čísla, pásma, hodnocení. Tahle sekce odpovídá na jinou: **jaký to má tvar.**
+Všechno je křivka přes celý blok, všechno jde přepnout po cvicích a nikde
+není verdikt. Volba bloku a zapnutých cviků platí napříč záložkami.
+
+| Záložka | K čemu |
+|---|---|
+| **Objem** | Tonáž po týdnech, objem každého cviku zvlášť (doplňky podle vlastního jména, ne jako jedna hromada), tvrdé série a počet zvedů |
+| **Intenzita a RPE** | Průměrná a špičková intenzita po týdnech, odchylka skutečného RPE od plánu proti nulové ose, rozložení intenzit po pětiprocentních pásmech |
+| **Maxima** | Vážený odhad maxima z odvedených sérií týden po týdnu proti maximu, ze kterého blok počítal váhy; posun za blok se signálem proti šumu; zapsaná maxima přes celou historii |
 
 ### Závod
 
@@ -245,7 +258,9 @@ nebo jedné akci. Barva v grafu nese úlohu:
   studeného k horkému. Těžší série je doslova žhavější buňka. Duha na
   uspořádaná data nutí čtenáře luštit legendu,
 - **kotoučové barvy zůstaly tam, kde znamenají kotouč** — na vykreslené ose
-  a ve skladu.
+  a ve skladu,
+- **čárkovaná čára není naměřená** — plán, norma nebo práh. Nikdy zapsaná
+  data. V legendě má proto čárku, ne plný čtvereček.
 
 Písma jsou tři a hostují se z repozitáře, ne z CDN: appka slibuje, že data
 nikam neposílá, a stahovat kvůli fontu soubor z cizí domény by ten slib

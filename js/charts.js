@@ -136,8 +136,15 @@ function niceStep(span, target = 4) {
  * jen čára.
  */
 export function lineChart(series, opts = {}) {
+  /**
+   * bare = jiskřička: bez mřížky, popisků osy y a svislé osy.
+   * V malém grafu na jeden cvik se popisky zmenší pod čitelnost a zbyde
+   * z nich šedá kaše — tvar křivky se ale čte dál. Hodnotu si čtenář
+   * vytáhne zaměřovačem, ten funguje i tady.
+   */
   const {
-    width = 620, height = 190, pad = { t: 12, r: 14, b: 26, l: 46 },
+    width = 620, height = 190, bare = false,
+    pad = bare ? { t: 8, r: 6, b: 14, l: 6 } : { t: 12, r: 14, b: 26, l: 46 },
     yZero = false, fmt = (v) => num(v, 0), xFmt = null, unit = '',
   } = opts;
   const all = series.flatMap((sr) => sr.points);
@@ -168,18 +175,20 @@ export function lineChart(series, opts = {}) {
   const defs = s('defs');
   svg.append(defs);
 
-  for (let v = y0; v <= y1 + 1e-9; v += step) {
-    const y = sy(v);
-    svg.append(s('line', {
-      x1: pad.l, y1: y, x2: width - pad.r, y2: y,
-      stroke: Math.abs(v) < 1e-9 && y0 < 0 ? AXIS : GRID, 'stroke-width': 1,
-    }));
-    svg.append(s('text', {
-      x: pad.l - 8, y: y + 3.5, 'text-anchor': 'end', fill: MUTED,
-      'font-size': 10, 'font-family': 'var(--font-mono)',
-    }, fmt(v)));
+  if (!bare) {
+    for (let v = y0; v <= y1 + 1e-9; v += step) {
+      const y = sy(v);
+      svg.append(s('line', {
+        x1: pad.l, y1: y, x2: width - pad.r, y2: y,
+        stroke: Math.abs(v) < 1e-9 && y0 < 0 ? AXIS : GRID, 'stroke-width': 1,
+      }));
+      svg.append(s('text', {
+        x: pad.l - 8, y: y + 3.5, 'text-anchor': 'end', fill: MUTED,
+        'font-size': 10, 'font-family': 'var(--font-mono)',
+      }, fmt(v)));
+    }
+    svg.append(s('line', { x1: pad.l, y1: pad.t, x2: pad.l, y2: pad.t + ih, stroke: AXIS, 'stroke-width': 1 }));
   }
-  svg.append(s('line', { x1: pad.l, y1: pad.t, x2: pad.l, y2: pad.t + ih, stroke: AXIS, 'stroke-width': 1 }));
 
   const wrap = h('div.chart-wrap', svg);
 
@@ -196,7 +205,9 @@ export function lineChart(series, opts = {}) {
       }));
     }
     svg.append(s('path', {
-      d: path(pts), fill: 'none', stroke: sr.color, 'stroke-width': 2,
+      d: path(pts), fill: 'none', stroke: sr.color, 'stroke-width': sr.dash ? 1.5 : 2,
+      // čárkovaná řada je referenční — plán, norma, práh. Nikdy naměřená data.
+      'stroke-dasharray': sr.dash ? '5 4' : null,
       'stroke-linecap': 'round', 'stroke-linejoin': 'round',
       'vector-effect': 'non-scaling-stroke',
     }));

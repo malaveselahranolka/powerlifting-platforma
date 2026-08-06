@@ -20,6 +20,7 @@ import { readinessView } from './views/readiness.js';
 import { velocityView } from './views/velocity.js';
 import { calendarView } from './views/calendar.js';
 import { adviceView } from './views/advice.js';
+import { volumeView, intensityView, maxView } from './views/graphs.js';
 import * as cloud from './cloud.js';
 
 /* =========================================================
@@ -60,6 +61,14 @@ const SECTIONS = [
       { id: 'analyza', label: 'Analýza', sub: 'Objem, intenzita a charakter jednotlivých týdnů.', view: blockView },
       { id: 'stavba', label: 'Stavba', sub: 'Vlny, procenta a hotový plán na týdny dopředu.', view: programView },
       { id: 'makro', label: 'Makrocyklus', sub: 'Bloky v čase, odlehčení a závody — sezóna jako celek.', view: macroView },
+    ],
+  },
+  {
+    id: 'grafy', label: 'Grafy', ic: 'chart', title: 'Grafy',
+    tabs: [
+      { id: 'objem', label: 'Objem', sub: 'Kolik práce se odvedlo — celkem, po cvicích a v tvrdých sériích.', view: volumeView },
+      { id: 'intenzita', label: 'Intenzita a RPE', sub: 'Jak těžké to bylo na papíře a jak těžké to bylo doopravdy.', view: intensityView },
+      { id: 'maxima', label: 'Maxima', sub: 'Kam se hnul odhad maxima — a jestli je ten posun prokazatelný.', view: maxView },
     ],
   },
   {
@@ -105,6 +114,7 @@ const ALIAS = {
   block: 'blok/analyza',
   program: 'blok/stavba',
   makro: 'blok/makro',
+  grafy: 'grafy/objem',
   meet: 'zavod/den',
   score: 'zavod/skore',
   athletes: 'sverenci/profily',

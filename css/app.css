@@ -1088,6 +1088,14 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 .split-legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); }
 .split-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .split-item i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+/* referenční řada — čárka, ne čtvereček, protože to nejsou naměřená data */
+.split-item i.is-ref {
+  width: 14px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed var(--ref, var(--steel));
+}
 .split-name { color: var(--ink-2); }
 .split-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); }
 
@@ -1960,6 +1968,138 @@ a { color: var(--accent-text); text-underline-offset: 2px; }
 }
 
 /* =========================================================
+   Grafy — lišta voleb a malé grafy
+
+   Lišta se lepí pod horní lištu. Stránka s grafy je dlouhá a přepínač
+   cviků je to jediné, co na ní chce být pořád po ruce — rolovat kvůli
+   němu nahoru je přesně ten druh práce navíc, kvůli které se nástroj
+   přestane používat.
+   ========================================================= */
+
+.gbar {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s4) var(--s5);
+  margin: calc(var(--s2) * -1) 0 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+
+.gbar-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.gbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Přepínač nese barvu své řady v grafu. Kdo si zhasne žlutou,
+   ví bez legendy, která křivka zmizela. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .14s var(--ease), background-color .14s var(--ease), border-color .14s var(--ease);
+}
+
+.chip i {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--chip, var(--steel));
+  opacity: .3;
+  transition: opacity .14s var(--ease);
+}
+
+.chip:hover { color: var(--ink); border-color: var(--axis); }
+
+.chip[aria-pressed='true'] {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--chip, var(--steel)) 55%, var(--line));
+  background: color-mix(in srgb, var(--chip, var(--steel)) 13%, var(--surface));
+}
+
+.chip[aria-pressed='true'] i { opacity: 1; }
+
+/* ---- malý graf na jeden cvik ---- */
+
+.mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.mini-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.mini-dot { width: 9px; height: 9px; flex: none; border-radius: 2px; }
+
+.mini-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-num {
+  font-family: var(--font-display);
+  font-stretch: 110%;
+  font-weight: 620;
+  font-size: 21px;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-num small {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--ink-3);
+  margin-left: 4px;
+}
+
+.mini-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-bottom: 6px; }
+
+.mini-flat {
+  display: grid;
+  place-items: center;
+  min-height: 60px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-align: center;
+  border-top: 1px dashed var(--line);
+  padding-top: var(--s2);
+}
+
+/* =========================================================
    Triáž na Přehledu
 
    Buď hoří jedna konkrétní věc, nebo nehoří nic. Klidný stav je jeden
@@ -2264,7 +2404,9 @@ body.is-locked { overflow: hidden; }
   /* ⌘K bez klávesnice nedává smysl a pět sekcí je vidět dole */
   .only-search { display: none; }
 
-  /* Pět položek s popiskem. Nic se neroluje, na nic se neklepe naslepo. */
+  /* Sekce s popiskem, každá stejně široká. Nic se neroluje, na nic se
+     neklepe naslepo. Sloupce se dopočítají, aby přibytí sekce nerozbilo
+     lištu — ale šest je strop, na 360 px se sedmý popisek už nevejde. */
   .tabbar {
     position: fixed;
     bottom: 0;
@@ -2272,7 +2414,8 @@ body.is-locked { overflow: hidden; }
     right: 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 2px;
     padding: 6px var(--s2) calc(6px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
