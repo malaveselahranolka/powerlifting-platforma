@@ -157,15 +157,37 @@ function seed() {
 /* ---------------------------------------------------------
    Store
    --------------------------------------------------------- */
+export let loadIssue = null;
+
 function load() {
+  let raw;
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return seed();
-    const data = JSON.parse(raw);
-    return data?.version === 1 && Array.isArray(data.athletes) ? data : seed();
+    raw = localStorage.getItem(KEY);
   } catch {
     return seed();
   }
+  
+  if (!raw) return seed();
+
+  const backup = (reason) => {
+    try {
+      localStorage.setItem(`${KEY}.bak`, raw);
+    } catch {}
+    loadIssue = { reason, backupKey: `${KEY}.bak` };
+    return seed();
+  };
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return backup('parse-error');
+  }
+
+  if (data?.version !== 1) return backup('version-mismatch');
+  if (!Array.isArray(data.athletes)) return backup('shape-mismatch');
+
+  return data;
 }
 
 export const state = load();
@@ -174,11 +196,20 @@ export const state = load();
 // prohlížeče by se vygenerovala znovu a všechny datumy by se posunuly.
 if (!localStorage.getItem(KEY)) persist();
 
+export let storageFailed = false;
+const storageErrorListeners = new Set();
+
+export function onStorageError(fn) {
+  storageErrorListeners.add(fn);
+  return () => storageErrorListeners.delete(fn);
+}
+
 function persist() {
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
-  } catch {
-    /* plné úložiště — v paměti stav zůstává */
+  } catch (err) {
+    storageFailed = true;
+    for (const l of storageErrorListeners) l(err);
   }
   // pokud je zapnutá cloudová synchronizace, naplánuj sloučený upload
   cloud.schedulePush(() => JSON.stringify(state));
