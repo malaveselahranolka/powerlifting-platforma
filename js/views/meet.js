@@ -45,7 +45,7 @@ function build(root, render, nav) {
       })),
       field('Tělesná váha (kg)', numInput({
         value: a.bw, step: 0.1,
-        oninput: (e) => { S.commit((s) => { s.athletes.find((x) => x.id === a.id).bw = Number(e.target.value); }); render(); },
+        onchange: (e) => { S.commit((s) => { s.athletes.find((x) => x.id === a.id).bw = Number(e.target.value); }); render(); },
       })),
       field('Kategorie', h('div.input', { style: { display: 'flex', alignItems: 'center' } },
         `${a.sex === 'm' ? 'Muži' : 'Ženy'} · ${wc.label}`))),
@@ -211,7 +211,7 @@ function timelineCard(plan, render) {
 
   const numField = (label, key, opts) => field(label, numInput({
     value: st[key], ...opts,
-    oninput: (e) => { const v = Number(e.target.value); if (v > 0) { st[key] = v; render(); } },
+    onchange: (e) => { const v = Number(e.target.value); if (v > 0) { st[key] = v; render(); } },
   }));
 
   return card('Kdy začít rozcvičku', {

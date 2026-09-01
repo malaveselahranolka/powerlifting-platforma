@@ -73,16 +73,16 @@ function build(root, render) {
       h('div.form-row',
         field(`Tělesná váha (${U()})`, numInput({
           value: inputNum(S.toDisplay(bw), 1), step: 0.1,
-          oninput: (e) => { st.bw = S.fromDisplay(Number(e.target.value)); render(); },
+          onchange: (e) => { st.bw = S.fromDisplay(Number(e.target.value)); render(); },
         })),
         field('Věk', numInput({
           value: age ?? '', step: 1, min: 5, max: 100, placeholder: 'nepovinné',
-          oninput: (e) => { const v = Number(e.target.value); st.age = v > 0 ? v : null; render(); },
+          onchange: (e) => { const v = Number(e.target.value); st.age = v > 0 ? v : null; render(); },
         }), 'Jen pro masters a dorost — koeficient se jinak neuplatní.')),
       h('div.form-row',
         ...COMP_LIFTS.map((k) => field(`${LIFTS[k].label} (${U()})`, numInput({
           value: inputNum(S.toDisplay(lifts[k]), 1), step: 2.5,
-          oninput: (e) => { st.lifts = { ...lifts, [k]: S.fromDisplay(Number(e.target.value)) }; render(); },
+          onchange: (e) => { st.lifts = { ...lifts, [k]: S.fromDisplay(Number(e.target.value)) }; render(); },
         })))),
       a && h('button.btn', { onclick: () => { st.sex = null; st.bw = null; st.equipment = null; st.lifts = null; render(); } },
         icon('users', 15), `Načíst z profilu · ${a.name}`)),

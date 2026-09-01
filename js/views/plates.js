@@ -60,7 +60,7 @@ function build(root, render) {
     card('Zadání', { eyebrow: 'Cíl a vybavení' },
       field(`Cílová váha (${unit})`, numInput({
         value: st.target, step: STEP, min: 0,
-        oninput: (e) => { st.target = Number(e.target.value); render(); },
+        onchange: (e) => { st.target = Number(e.target.value); render(); },
       })),
       h('div.form-row',
         field('Osa', select(

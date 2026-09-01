@@ -30,7 +30,7 @@ function build(root, render) {
       field(`E1RM (${U()})`, numInput({
         value: inputNum(S.toDisplay(e1), 1),
         step: 2.5,
-        oninput: (e) => { st.e1rm = S.fromDisplay(Number(e.target.value)); render(); },
+        onchange: (e) => { st.e1rm = S.fromDisplay(Number(e.target.value)); render(); },
       })),
       a && field('Převzít od svěřence', h('button.btn', { onclick: () => { st.e1rm = null; render(); } }, `${a.name} · ${Wu(a.e1rm[st.lift])}`)))));
 
