@@ -432,6 +432,15 @@ function editor(entries, blk, a, render) {
    ========================================================= */
 /* Export nese plán i skutečnost. Kdyby vezl jen plán, záloha by zahodila
    přesně tu část, kvůli které se trénink zapisuje. */
+function escapeCsv(val) {
+  if (val == null) return '';
+  const str = String(val);
+  if (/[;"\r\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 function exportCsv(entries, blk) {
   const head = 'datum;cvik;nazev;serie;opakovani;vaha_kg;rpe;skutecna_vaha_kg;skutecna_opakovani;skutecne_rpe';
   const body = entries
@@ -439,9 +448,41 @@ function exportCsv(entries, blk) {
     .map((e) => [
       e.date, e.lift, e.name ?? '', e.sets, e.reps, e.weight, e.rpe ?? '',
       e.actualWeight ?? '', e.actualReps ?? '', e.actualRpe ?? '',
-    ].join(';'));
+    ].map(escapeCsv).join(';'));
   download(`${blk.name.replace(/\s+/g, '-').toLowerCase()}.csv`, [head, ...body].join('\n'));
   toast('CSV staženo');
+}
+
+function parseCsvLine(line) {
+  const cells = [];
+  let inQuotes = false;
+  let current = '';
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ';' || c === '\t') {
+        cells.push(current);
+        current = '';
+      } else {
+        current += c;
+      }
+    }
+  }
+  cells.push(current);
+  return cells;
 }
 
 function importCsv(blk, render) {
@@ -452,24 +493,43 @@ function importCsv(blk, render) {
     const text = await file.text();
     const lines = text.replace(/^﻿/, '').trim().split(/\r?\n/).slice(1);
     let n = 0;
+    let skipped = 0;
     S.commit((s) => {
       for (const line of lines) {
-        const [date, lift, name, sets, reps, weight, rpe, aw, ar, arpe] =
-          line.split(/[;,\t]/).map((x) => x?.trim());
-        if (!date || !sets) continue;
+        if (!line.trim()) continue;
+        const [date, lift, name, setsStr, repsStr, weightStr, rpe, aw, ar, arpe] =
+          parseCsvLine(line).map((x) => x?.trim());
+        
+        const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
+        if (!date || !isValidDate) {
+          skipped++;
+          continue;
+        }
+        
+        const sets = Number(setsStr);
+        const reps = Number(repsStr);
+        const weight = Number(weightStr);
+        
+        if (setsStr === '' || repsStr === '' || weightStr === '' || !Number.isFinite(sets) || !Number.isFinite(reps) || !Number.isFinite(weight)) {
+          skipped++;
+          continue;
+        }
+
         // sloupce se skutečností jsou nepovinné — starší soubory je nemají
-        const opt = (v) => (v ? Number(v) : null);
+        const opt = (v) => (v === '' || v == null ? null : Number(v));
         s.entries.push({
           id: S.uid(), blockId: blk.id, athleteId: blk.athleteId,
           date, lift: LIFTS[lift] ? lift : 'accessory', name: name || null,
-          sets: Number(sets), reps: Number(reps), weight: Number(weight),
-          rpe: rpe ? Number(rpe) : null,
+          sets, reps, weight,
+          rpe: opt(rpe),
           actualWeight: opt(aw), actualReps: opt(ar), actualRpe: opt(arpe),
         });
         n++;
       }
     });
-    toast(n ? `Načteno ${n} řádků` : 'Nic k načtení', n ? 'ok' : 'bad');
+    const msg = n ? `Načteno ${n} řádků` : 'Nic k načtení';
+    const skipMsg = skipped ? ` (${skipped} přeskočeno)` : '';
+    toast(msg + skipMsg, n ? (skipped ? 'warn' : 'ok') : 'bad');
     render();
   });
   document.body.append(input);
