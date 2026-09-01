@@ -74,6 +74,7 @@ function headers(c) {
     apikey: c.key,
     Authorization: `Bearer ${c.key}`,
     'Content-Type': 'application/json',
+    'x-sync-id': c.syncId,
   };
 }
 

@@ -170,7 +170,10 @@ const SQL_SNIPPET = `create table if not exists sync (
   updated_at timestamptz not null default now()
 );
 alter table sync enable row level security;
-create policy "anon rw" on sync for all to anon using (true) with check (true);`;
+drop policy if exists "anon rw" on sync;
+create policy "sync by id" on sync for all to anon
+  using (id::text = current_setting('request.headers', true)::json->>'x-sync-id')
+  with check (id::text = current_setting('request.headers', true)::json->>'x-sync-id');`;
 
 function cloudCard(render) {
   if (cloud.enabled()) return cloudEnabledCard(render);
@@ -212,6 +215,7 @@ function cloudCard(render) {
         h('button.btn.btn-sm.cloud-copy', {
           onclick: () => { navigator.clipboard?.writeText(SQL_SNIPPET); toast('SQL zkopírováno'); },
         }, icon('copy', 14), 'Kopírovat')),
+      h('p.note', 'Kdo už spouštěl starší verzi SQL, musí spustit i tuhle, protože stará pravidla zůstávají v platnosti, dokud se nesmažou.'),
       h('li', 'V ', h('b', 'Project Settings → API'), ' najdeš ', h('b', 'Project URL'), ' a klíč ', h('b', 'anon public'), '. Vlož je sem:')),
 
     h('div.form-row',
