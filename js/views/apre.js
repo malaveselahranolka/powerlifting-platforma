@@ -49,7 +49,7 @@ function build(root, render, nav) {
         field(`6RM (${U()})`, numInput({
           value: inputNum(S.toDisplay(sixRm), 1),
           step: 2.5,
-          oninput: (e) => { st.override = S.fromDisplay(Number(e.target.value)); render(); },
+          onchange: (e) => { st.override = S.fromDisplay(Number(e.target.value)); render(); },
         }))),
       h('p.note', 'Appka odhadne 6RM z aktuálního E1RM, dokud ho sám neuložíš z výsledku série 3. Znáš-li přesnější číslo, přepiš ho ručně.')),
 
@@ -74,7 +74,7 @@ function build(root, render, nav) {
     h('div.form-row',
       field('Skutečná opakování (AMRAP)', numInput({
         value: st.amrap ?? '', min: 0, max: 30, step: 1,
-        oninput: (e) => { st.amrap = e.target.value === '' ? null : Math.max(0, Number(e.target.value)); render(); },
+        onchange: (e) => { st.amrap = e.target.value === '' ? null : Math.max(0, Number(e.target.value)); render(); },
       }))),
     adjust && h('div', { style: { marginTop: '8px' } },
       h('div.grid.g2',

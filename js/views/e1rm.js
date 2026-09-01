@@ -46,8 +46,8 @@ function forward(root, render, a, inKg) {
   root.append(h('div.grid.g-side-l',
     card('Zadání', { eyebrow: 'Co se skutečně zvedlo' },
       h('div.form-row',
-        field(`Váha (${U()})`, numInput({ value: st.weight, step: 2.5, min: 0, oninput: (e) => { st.weight = Number(e.target.value); render(); } })),
-        field('Opakování', numInput({ value: st.reps, step: 1, min: 1, max: 12, oninput: (e) => { st.reps = Math.min(12, Math.max(1, Number(e.target.value))); render(); } })),
+        field(`Váha (${U()})`, numInput({ value: st.weight, step: 2.5, min: 0, onchange: (e) => { st.weight = Number(e.target.value); render(); } })),
+        field('Opakování', numInput({ value: st.reps, step: 1, min: 1, max: 12, onchange: (e) => { st.reps = Math.min(12, Math.max(1, Number(e.target.value))); render(); } })),
         field('RPE', select(RPE_STEPS.map((r) => ({ value: r, label: rpeLabel(r) })), {
           value: st.rpe, onchange: (e) => { st.rpe = Number(e.target.value); render(); },
         }), `${rpeLabel(C.rir(st.rpe))} v záloze`)),
@@ -127,10 +127,10 @@ function reverse(root, render, a, inKg) {
         field(`E1RM (${U()})`, numInput({
           value: inputNum(S.toDisplay(e1), 1),
           step: 2.5,
-          oninput: (e) => { st.baseE1rm = Number(e.target.value); render(); },
+          onchange: (e) => { st.baseE1rm = Number(e.target.value); render(); },
         }))),
       h('div.form-row',
-        field('Cílová opakování', numInput({ value: st.target.reps, min: 1, max: 12, step: 1, oninput: (e) => { st.target.reps = Math.min(12, Math.max(1, Number(e.target.value))); render(); } })),
+        field('Cílová opakování', numInput({ value: st.target.reps, min: 1, max: 12, step: 1, onchange: (e) => { st.target.reps = Math.min(12, Math.max(1, Number(e.target.value))); render(); } })),
         field('Cílové RPE', select(RPE_STEPS.map((r) => ({ value: r, label: rpeLabel(r) })), {
           value: st.target.rpe, onchange: (e) => { st.target.rpe = Number(e.target.value); render(); },
         }))),

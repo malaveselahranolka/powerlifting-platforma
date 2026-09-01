@@ -1,4 +1,4 @@
-import { h, s, icon, clear, segmented, select, cmdPalette, applyTheme, readTheme, setTheme } from './ui.js';
+import { h, s, icon, clear, segmented, select, cmdPalette, applyTheme, readTheme, setTheme, toast } from './ui.js';
 import * as S from './store.js';
 
 import { initials } from './views/_util.js';
@@ -441,8 +441,25 @@ function render() {
 
 /* Start: pokud je zapnutá cloudová synchronizace a v cloudu je novější verze,
    stáhne ji a znovu načte stránku. Jinak rovnou vykreslí. */
+/**
+ * Dvě tichá selhání, o kterých se trenér musí dozvědět hned.
+ *
+ * Store je umí jen ohlásit — ukazovat je musí někdo, kdo vidí na obrazovku.
+ * Bez tohohle by se poškozený stav odložil do zálohy a plné úložiště zahodilo
+ * každou další změnu, obojí naprosto beze stopy.
+ */
+function watchStorage() {
+  if (S.loadIssue) {
+    toast(`Uložená data nešla načíst, jede se z ukázkových. Původní jsou v záloze (${S.loadIssue.backupKey}).`, 'bad');
+  }
+  S.onStorageError(() => {
+    toast('Úložiště prohlížeče je plné — změny se neukládají. Zazálohuj data a uvolni místo.', 'bad');
+  });
+}
+
 async function boot() {
   applyTheme();
+  watchStorage();
 
   /* Stará adresa nástroje (#e1rm, #plates, …) z něčí záložky. Obrazovka
      už to není, tak se otevře Přehled a nad ním rovnou ten nástroj. */

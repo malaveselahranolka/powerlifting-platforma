@@ -631,7 +631,7 @@ function wendlerBody(a, render) {
     h('div.form-row',
       field('Kolik opakování dala poslední série týdne 1?', numInput({
         value: tplState.amrapReps ?? '', step: 1, min: 0, placeholder: `minimum je ${WENDLER_531.amrapFloor['5']}`,
-        oninput: (e) => { const v = e.target.value.trim(); tplState.amrapReps = v === '' ? null : Number(v); render(); },
+        onchange: (e) => { const v = e.target.value.trim(); tplState.amrapReps = v === '' ? null : Number(v); render(); },
       }), 'Podle toho se pozná, jestli není tréninkové maximum nadsazené.')),
 
     check && flagRow({ tone: check.short ? 'warn' : 'ok', text: check.note }),
